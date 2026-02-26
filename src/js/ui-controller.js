@@ -1,0 +1,483 @@
+import { searchYouTube, fetchVideoInfo, isYouTubeURL } from './youtube-service.js';
+import { saveStem, addToHistory, getHistory } from './storage-service.js';
+import { ktv } from './ktv-player.js';
+
+export const UIState = {
+    IDLE: 'idle',
+    LOADING_MODEL: 'loading_model',
+    UPLOADING: 'uploading',
+    PROCESSING: 'processing',
+    DONE: 'done',
+    ERROR: 'error',
+};
+
+export class UIController {
+    constructor() {
+        this.state = UIState.IDLE;
+        this._listeners = {};
+        this._urlDebounceTimer = null;
+        this._apiAvailable = false;
+        this._selectedVideo = null;
+        this._currentPitch = 0;
+
+        // DOM refs — upload tab
+        this.$dropZone = document.getElementById('drop-zone');
+        this.$fileInput = document.getElementById('file-input');
+        this.$fileName = document.getElementById('file-name');
+
+        // DOM refs — Search tab
+        this.$urlInput = document.getElementById('url-input');
+        this.$urlClearBtn = document.getElementById('url-clear-btn');
+        this.$extractBtn = document.getElementById('extract-btn');
+        this.$videoPreview = document.getElementById('video-preview');
+        this.$videoThumb = document.getElementById('video-thumb');
+        this.$videoTitle = document.getElementById('video-title');
+        this.$videoUploader = document.getElementById('video-uploader');
+        this.$videoDuration = document.getElementById('video-duration');
+        this.$searchResults = document.getElementById('search-results');
+        this.$searchForm = document.getElementById('search-form');
+
+        // DOM refs — History
+        this.$historySection = document.getElementById('history-section');
+        this.$historyList = document.getElementById('history-list');
+
+        // DOM refs — shared
+        this.$statusText = document.getElementById('status-text');
+        this.$progressWrap = document.getElementById('progress-wrap');
+        this.$progressFill = document.getElementById('progress-fill');
+        this.$progressPct = document.getElementById('progress-pct');
+        this.$progressTrack = this.$progressWrap?.querySelector('.progress-bar-track');
+        this.$etaText = document.getElementById('eta-text');
+        this.$envBadges = document.getElementById('env-badges');
+        this.$envWarnings = document.getElementById('env-warnings');
+        this.$modelStatus = document.getElementById('model-cache-status');
+        this.$cancelBtn = document.getElementById('cancel-btn');
+        this.$waveform = document.getElementById('waveform');
+
+        // DOM refs — result
+        this.$resultPanel = document.getElementById('result-panel');
+        this.$vocalsDownload = document.getElementById('vocals-download');
+        this.$accompDownload = document.getElementById('accomp-download');
+        this.$dlMenuBtn = document.getElementById('dl-menu-btn');
+        this.$videoOverlay = document.getElementById('video-overlay');
+        this.$dlMenu = document.getElementById('dl-menu');
+        this.$resetBtn = document.getElementById('reset-btn');
+
+        this.$guideToggle = document.getElementById('guide-toggle');
+        this.$pitchDown = document.getElementById('pitch-down');
+        this.$pitchUp = document.getElementById('pitch-up');
+        this.$pitchVal = document.getElementById('pitch-val');
+
+        // Tabs
+        this.$tabUpload = document.getElementById('tab-upload');
+        this.$tabUrl = document.getElementById('tab-url');
+        this.$panelUpload = document.getElementById('panel-upload');
+        this.$panelUrl = document.getElementById('panel-url');
+
+        this._bindEvents();
+        this.renderHistory();
+    }
+
+    // ── Event emitter ────────────────────────────────────────
+    on(event, fn) {
+        if (!this._listeners[event]) this._listeners[event] = [];
+        this._listeners[event].push(fn);
+    }
+    emit(event, ...args) {
+        (this._listeners[event] || []).forEach(fn => fn(...args));
+    }
+
+    // ── Bind events ──────────────────────────────────────────
+    _bindEvents() {
+        // Tab switching
+        this.$tabUpload.addEventListener('click', () => this._switchTab('upload'));
+        this.$tabUrl.addEventListener('click', () => this._switchTab('url'));
+
+        // KTV Controls
+        this.$guideToggle?.addEventListener('click', () => {
+            const isActive = this.$guideToggle.classList.contains('active');
+            const newState = !isActive;
+            this.$guideToggle.classList.toggle('active', newState);
+            this.$guideToggle.setAttribute('aria-pressed', newState);
+            this.$guideToggle.querySelector('.ktv-label').textContent = newState ? '導唱 On' : '導唱 Off';
+            ktv.toggleGuide(newState);
+        });
+
+        this.$pitchDown?.addEventListener('click', () => {
+            this._currentPitch--;
+            this._updatePitch();
+        });
+
+        this.$pitchUp?.addEventListener('click', () => {
+            this._currentPitch++;
+            this._updatePitch();
+        });
+
+        this.$dlMenuBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = this.$dlMenu.style.display === 'flex';
+            this.$dlMenu.style.display = isOpen ? 'none' : 'flex';
+        });
+
+        document.addEventListener('click', () => {
+            if (this.$dlMenu) this.$dlMenu.style.display = 'none';
+        });
+
+        // Drop zone
+        this.$dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            if (this.state === UIState.IDLE) this.$dropZone.classList.add('drag-over');
+        });
+        this.$dropZone.addEventListener('dragleave', () => this.$dropZone.classList.remove('drag-over'));
+        this.$dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            this.$dropZone.classList.remove('drag-over');
+            if (this.state !== UIState.IDLE) return;
+            const file = e.dataTransfer.files[0];
+            if (file && this._validateFile(file)) this.emit('file-selected', file);
+        });
+        this.$dropZone.addEventListener('click', () => {
+            if (this.state === UIState.IDLE) this.$fileInput.click();
+        });
+        this.$fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && this._validateFile(file)) this.emit('file-selected', file);
+            e.target.value = '';
+        });
+
+        // URL / Search input
+        this.$urlInput.addEventListener('input', () => {
+            const val = this.$urlInput.value.trim();
+            this.$urlClearBtn.style.display = val ? 'block' : 'none';
+            if (!val) this._resetURLPanel();
+        });
+
+        this.$searchForm?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const val = this.$urlInput.value.trim();
+            if (!val) return;
+
+            clearTimeout(this._urlDebounceTimer);
+            this.$urlInput.placeholder = '搜尋中...';
+
+            if (isYouTubeURL(val)) {
+                this._handleDirectURL(val);
+            } else {
+                this.emit('url-search', val);
+            }
+        });
+
+        this.$urlClearBtn.addEventListener('click', () => {
+            this.$urlInput.value = '';
+            this.$urlClearBtn.style.display = 'none';
+            this._resetURLPanel();
+        });
+
+        this.$extractBtn.addEventListener('click', () => {
+            if (this._selectedVideo && this.state === UIState.IDLE) {
+                this._showModeSelection();
+            }
+        });
+
+        // Mode cards
+        document.getElementById('mode-quick')?.addEventListener('click', () => {
+            this.emit('mode-selected', 'quick');
+        });
+        document.getElementById('mode-ai')?.addEventListener('click', () => {
+            this.emit('mode-selected', 'ai');
+        });
+
+        this.$resetBtn.addEventListener('click', () => this.reset());
+        this.$cancelBtn.addEventListener('click', () => this.emit('cancel'));
+    }
+
+    _updatePitch() {
+        this._currentPitch = Math.max(-5, Math.min(5, this._currentPitch));
+        const val = this._currentPitch;
+        this.$pitchVal.textContent = val === 0 ? '原調' : (val > 0 ? `+${val}` : `${val}`);
+        this.$pitchDown.disabled = this._currentPitch <= -5;
+        this.$pitchUp.disabled = this._currentPitch >= 5;
+        ktv.setPitch(this._currentPitch);
+    }
+
+    _switchTab(tab) {
+        const toUpload = tab === 'upload';
+        this.$tabUpload.classList.toggle('active', toUpload);
+        this.$tabUrl.classList.toggle('active', !toUpload);
+        this.$tabUpload.setAttribute('aria-selected', toUpload);
+        this.$tabUrl.setAttribute('aria-selected', !toUpload);
+        this.$panelUpload.classList.toggle('active', toUpload);
+        this.$panelUrl.classList.toggle('active', !toUpload);
+    }
+
+    async _handleDirectURL(url) {
+        this.$urlInput.placeholder = '貼上網址或搜尋歌曲...';
+        this._resetURLPanel();
+        this.setStatus('🔍 讀取網址資訊...');
+        try {
+            const info = await fetchVideoInfo(url);
+            this._selectVideo({
+                id: info.id || url.match(/(?:v=|\/embed\/|\/1\/|\/v\/|https:\/\/youtu\.be\/)([^"&?\/\s]{11})/)?.[1],
+                url: url,
+                title: info.title,
+                uploader: info.uploader,
+                thumbnail: info.thumbnail,
+                duration: info.duration
+            });
+            this.setStatus('✅ 已讀取連結，點擊按鈕開始分析');
+        } catch (e) {
+            this.setStatus('❌ 無法讀取連結');
+        }
+    }
+
+    showSearchResults(results) {
+        this.$urlInput.placeholder = '貼上網址或搜尋歌曲...';
+        this._resetURLPanel();
+        if (!results || results.length === 0) {
+            this.$searchResults.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-3); font-size: 0.8rem;">查無結果</div>';
+            this.$searchResults.style.display = 'block';
+            return;
+        }
+
+        this.$searchResults.innerHTML = results.map(video => `
+            <div class="search-item" data-id="${video.id}">
+                <img class="search-thumb" src="${video.thumbnail}" alt="">
+                <div class="search-meta">
+                    <div class="search-title">${video.title}</div>
+                    <div class="search-sub">
+                        <span>👤 ${video.uploader}</span>
+                        <span>⏱️ ${this._formatSeconds(video.duration)}</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        this.$searchResults.style.display = 'flex';
+
+        this.$searchResults.querySelectorAll('.search-item').forEach((item, idx) => {
+            item.onclick = () => {
+                this._selectVideo(results[idx]);
+                this.$searchResults.querySelectorAll('.search-item').forEach(el => el.classList.remove('selected'));
+                item.classList.add('selected');
+            };
+        });
+    }
+
+    _selectVideo(video) {
+        this._selectedVideo = video;
+        this.$videoThumb.src = video.thumbnail;
+        this.$videoTitle.textContent = video.title;
+        this.$videoUploader.textContent = `👤 ${video.uploader}`;
+        this.$videoDuration.textContent = `⏱️ ${this._formatSeconds(video.duration)}`;
+        this.$videoPreview.style.display = 'flex';
+        this.$extractBtn.style.display = 'inline-flex';
+        this.$extractBtn.disabled = !this._apiAvailable;
+
+        if (!this._apiAvailable) {
+            this.$extractBtn.textContent = '⚠️ 後端未啟動';
+        } else {
+            this.$extractBtn.textContent = '匯入並分析';
+        }
+        this.emit('video-selected', video);
+    }
+
+    _formatSeconds(s) {
+        const m = Math.floor(s / 60), sec = String(Math.floor(s % 60)).padStart(2, '0');
+        return `${m}:${sec}`;
+    }
+
+    _resetURLPanel() {
+        this._selectedVideo = null;
+        this.$searchResults.style.display = 'none';
+        this.$videoPreview.style.display = 'none';
+        this.$extractBtn.style.display = 'none';
+        document.getElementById('mode-selection').style.display = 'none';
+    }
+
+    _showModeSelection() {
+        document.getElementById('mode-selection').style.display = 'block';
+        this.$extractBtn.style.display = 'none';
+        window.scrollTo({ top: document.getElementById('mode-selection').offsetTop - 20, behavior: 'smooth' });
+    }
+
+    setAPIStatus(ok) {
+        this._apiAvailable = ok;
+        if (!ok) {
+            if (!document.getElementById('api-warning')) {
+                const badge = document.createElement('div');
+                badge.className = 'warning-item';
+                badge.id = 'api-warning';
+                badge.textContent = '⚠️ YouTube 後端未啟動，功能受限';
+                badge.style.cssText = 'padding: 6px 16px; border-top: 1px solid rgba(255,255,255,0.06); text-align:center; font-size: 0.75rem; color: var(--text-3);';
+                this.$panelUrl.appendChild(badge);
+            }
+        } else {
+            document.getElementById('api-warning')?.remove();
+        }
+    }
+
+    // ── History ──────────────────────────────────────────────
+    renderHistory() {
+        const history = getHistory();
+        if (history.length === 0) {
+            this.$historySection.style.display = 'none';
+            return;
+        }
+
+        this.$historySection.style.display = 'block';
+        this.$historyList.innerHTML = history.map(item => `
+            <div class="history-card" data-id="${item.id}">
+                <img src="${item.thumbnail}" class="history-thumb" alt="">
+                <div class="history-title">${item.title}</div>
+            </div>
+        `).join('');
+
+        this.$historyList.querySelectorAll('.history-card').forEach((card, idx) => {
+            card.onclick = () => this.emit('history-item-selected', history[idx]);
+        });
+    }
+
+    // ── File validation ──────────────────────────────────────
+    _validateFile(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        const ok = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(ext);
+        if (!ok) { this.showError('❌ 請上傳音訊檔案 (MP3, WAV, FLAC, M4A)'); return false; }
+        if (file.size > 200 * 1024 * 1024) { this.showError('❌ 檔案過大 (限制 200MB)'); return false; }
+        return true;
+    }
+
+    // ── State machine ────────────────────────────────────────
+    setState(state) {
+        this.state = state;
+        document.body.dataset.uiState = state;
+
+        const busy = [UIState.LOADING_MODEL, UIState.PROCESSING].includes(state);
+        this.$progressWrap.style.display = busy ? 'block' : 'none';
+        this.$cancelBtn.style.display = busy ? 'flex' : 'none';
+
+        // 隱藏所有主要區塊，確保不重複疊加
+        const cards = [
+            document.querySelector('.input-card'),
+            document.getElementById('mode-selection'),
+            this.$resultPanel,
+            this.$historySection
+        ];
+        cards.forEach(c => { if (c) c.style.display = 'none'; });
+
+        // 根據狀態渲染 UI
+        if (state === UIState.IDLE || state === UIState.ERROR) {
+            document.querySelector('.input-card').style.display = 'block';
+            this.$historySection.style.display = 'block';
+            this.renderHistory();
+        } else if (state === UIState.LOADING_MODEL || state === UIState.PROCESSING) {
+            this.$waveform.classList.add('active');
+        } else if (state === UIState.DONE) {
+            this.$resultPanel.style.display = 'flex';
+            this.$resultPanel.classList.add('visible');
+            this.$resultPanel.setAttribute('aria-hidden', 'false');
+            this.$waveform.classList.remove('active');
+            this.$dropZone.classList.add('done');
+        }
+
+        this.$dropZone.classList.toggle('disabled', [UIState.LOADING_MODEL, UIState.PROCESSING].includes(state));
+    }
+
+    setStatus(msg) { if (this.$statusText) this.$statusText.textContent = msg; }
+
+    setProgress(pct, etaSeconds = null) {
+        const c = Math.max(0, Math.min(100, pct));
+        this.$progressFill.style.width = `${c}%`;
+        this.$progressPct.textContent = `${Math.round(c)}%`;
+        this.$progressTrack?.setAttribute('aria-valuenow', Math.round(c));
+        if (etaSeconds !== null && etaSeconds > 0) {
+            const m = Math.floor(etaSeconds / 60), s = Math.floor(etaSeconds % 60);
+            this.$etaText.textContent = m > 0 ? `預計 ${m}分${s}秒` : `預計 ${s}秒`;
+        } else {
+            this.$etaText.textContent = '';
+        }
+    }
+
+    showEnvBadges(env) {
+        const badges = [];
+        if (env.hasWebGPU) badges.push({ t: 'WebGPU ⚡', c: 'badge-gpu' });
+        else badges.push({ t: 'WASM CPU', c: 'badge-wasm' });
+        if (env.isIOS) badges.push({ t: `iOS ${env.iOSVersion.major}`, c: 'badge-ios' });
+        this.$envBadges.innerHTML = badges.map(b => `<span class="badge ${b.c}">${b.t}</span>`).join('');
+    }
+
+    setModelCacheStatus(fromCache, mb) {
+        if (!this.$modelStatus) return;
+        this.$modelStatus.textContent = fromCache ? `⚡ 快取命中 (${Math.round(mb)} MB)` : `📥 已下載並快取 (${Math.round(mb)} MB)`;
+        this.$modelStatus.className = 'model-cache-status ' + (fromCache ? 'cache-hit' : 'cache-miss');
+    }
+
+    setFileName(name) {
+        if (this.$fileName) { this.$fileName.textContent = name; this.$fileName.style.display = 'block'; }
+    }
+
+    async setResults(results, originalFileName, metadata = null) {
+        const { vocalsURL, accompanimentURL, vocalsBlob, accompanimentBlob } = results;
+        const base = originalFileName.replace(/\.[^.]+$/, '');
+
+        this.$vocalsDownload.href = vocalsURL;
+        this.$vocalsDownload.download = `${base}_vocals.wav`;
+        this.$accompDownload.href = accompanimentURL;
+        this.$accompDownload.download = `${base}_instrumental.wav`;
+
+        this.setState(UIState.DONE);
+        this.setStatus('🎉 分析完成！');
+
+        // 持久化處理
+        if (metadata && metadata.id) {
+            // 初始化同步播放器
+            this.setStatus('📺 載入同步播放器...');
+
+            // 儲存至本地 OPFS
+            try {
+                this.setStatus('💾 正在存檔至手機...');
+                await saveStem(metadata.id, 'vocals', vocalsBlob);
+                await saveStem(metadata.id, 'accompaniment', accompanimentBlob);
+                addToHistory(metadata);
+                this.renderHistory();
+            } catch (e) {
+                console.error('[Persistence] Save failed:', e);
+            }
+
+            // 最後才載入播放器，給 UI 一點時間轉場並顯現容器
+            this.setStatus('📺 載入同步播放器...');
+            this.$videoOverlay.classList.add('active'); // 顯示同步中疊加層
+
+            await new Promise(r => setTimeout(r, 400));
+            const vBuffer = await this._blobToAudioBuffer(vocalsBlob);
+            const aBuffer = await this._blobToAudioBuffer(accompanimentBlob);
+
+            try {
+                await ktv.load(vBuffer, aBuffer, metadata.id);
+                this.setStatus('✅ 準備完成，開始熱唱！');
+            } catch (err) {
+                console.error('[KTV] Load failed:', err);
+                this.setStatus('⚠️ 播放器初始化失敗，請重新試試');
+            } finally {
+                this.$videoOverlay.classList.remove('active'); // 移除疊加層
+            }
+        } else {
+            this.$resultPanel.style.display = 'none';
+        }
+    }
+
+    showError(msg) {
+        this.setState(UIState.ERROR);
+        this.setStatus(msg);
+        setTimeout(() => { if (this.state === UIState.ERROR) this.reset(); }, 4000);
+    }
+
+    async _blobToAudioBuffer(blob) {
+        const arrayBuffer = await blob.arrayBuffer();
+        return await ktv.ctx.decodeAudioData(arrayBuffer);
+    }
+
+    reset() {
+        ktv.destroy(); // 重置播放器
+        location.reload(); // 最徹底的重置方式
+    }
+}

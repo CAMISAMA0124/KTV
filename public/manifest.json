@@ -1,0 +1,41 @@
+{
+    "name": "StemSplit AI",
+    "short_name": "StemSplit",
+    "description": "AI 音軌分離 — 人聲與伴奏，在 iPhone 本地運算",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#07070f",
+    "background_color": "#07070f",
+    "lang": "zh-Hant",
+    "categories": [
+        "music",
+        "utilities"
+    ],
+    "icons": [
+        {
+            "src": "icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-180.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ],
+    "screenshots": [],
+    "display_override": [
+        "standalone",
+        "browser"
+    ]
+}

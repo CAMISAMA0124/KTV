@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#07070F"/>
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- Background glow orb -->
+  <circle cx="256" cy="256" r="180" fill="url(#g2)" opacity="0.5"/>
+  <!-- Waveform bars -->
+  <g filter="url(#glow)" fill="url(#g1)">
+    <rect x="88"  y="196" width="36" height="120" rx="18"/>
+    <rect x="144" y="156" width="36" height="200" rx="18"/>
+    <rect x="200" y="120" width="36" height="272" rx="18"/>
+    <rect x="256" y="96"  width="36" height="320" rx="18"/>
+    <rect x="312" y="120" width="36" height="272" rx="18"/>
+    <rect x="368" y="156" width="36" height="200" rx="18"/>
+    <rect x="424" y="196" width="36" height="120" rx="18"/>
+  </g>
+</svg>
