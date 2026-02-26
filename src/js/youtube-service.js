@@ -3,7 +3,7 @@
  * YouTube 服務模組 — 整合搜尋與音訊擷取
  */
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 /**
  * 搜尋 YouTube 影片
