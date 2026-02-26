@@ -1,0 +1,24 @@
+{
+  "name": "audio-stem-separator",
+  "version": "2.0.0",
+  "description": "iPhone WebGPU AI 音軌分離 — 本地端 AI，隱私快速",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173 --host 127.0.0.1",
+    "dev:server": "node server/index.js",
+    "dev:all": "concurrently \"npm run dev:server\" \"npm run dev\"",
+    "build": "vite build",
+    "preview": "vite preview --port 5173 --host 127.0.0.1"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "demucs-web": "^1.0.2",
+    "express": "^5.2.1",
+    "onnxruntime-web": "^1.20.1",
+    "yt-dlp-wrap": "^2.3.12"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "vite": "^5.4.0"
+  }
+}
