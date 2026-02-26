@@ -138,47 +138,55 @@ audio {
 }
 
 /* ── Header ──────────────────────────────────────────────── */
-.app-header {
+header {
   position: sticky;
   top: 0;
   z-index: 200;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: calc(var(--safe-top) + 10px) calc(var(--content-pad) + var(--safe-r)) 10px calc(var(--content-pad) + var(--safe-l));
-  background: rgba(7, 7, 15, 0.72);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  gap: 12px;
+  padding: calc(var(--safe-top) + 16px) var(--content-pad) 16px;
+  background: rgba(7, 7, 15, 0.82);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
   border-bottom: 1px solid var(--border);
+  text-align: center;
 }
 
 .logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
 .logo-icon {
-  width: 34px;
-  height: 34px;
-  background: rgba(167, 139, 250, 0.1);
-  border: 1px solid rgba(167, 139, 250, 0.22);
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  border-radius: 12px;
   display: grid;
   place-items: center;
+  font-size: 1.4rem;
+  box-shadow: 0 0 20px rgba(167, 139, 250, 0.2);
 }
 
-.logo-text {
-  font-size: 1.05rem;
-  font-weight: 700;
+.logo-text h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
   letter-spacing: -0.02em;
-}
-
-.logo-ai {
-  background: linear-gradient(90deg, var(--purple), var(--blue));
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.7) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  background-clip: text;
+}
+
+.logo-text p {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  letter-spacing: 0.05em;
 }
 
 /* Env badges */
@@ -410,11 +418,13 @@ body[data-ui-state="processing"] .card {
 /* ── Tab bar ─────────────────────────────────────────────── */
 .input-card {
   padding: 0;
+  overflow: hidden;
 }
 
-.tab-bar {
+.tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid var(--border);
 }
 
@@ -422,42 +432,37 @@ body[data-ui-state="processing"] .card {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 14px 10px;
-  font-size: 0.88rem;
-  font-weight: 600;
+  gap: 8px;
+  padding: 16px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
   color: var(--text-3);
   background: none;
   border: none;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
   position: relative;
 }
 
-/* YouTube Search (first tab) has right border, tab-upload (second tab) no border */
 #tab-url {
   border-right: 1px solid var(--border);
 }
 
-#tab-upload {
-  border-right: none;
-}
-
 .tab.active {
-  color: var(--purple);
-  background: rgba(167, 139, 250, 0.05);
+  color: var(--text-1);
+  background: rgba(167, 139, 250, 0.08);
 }
 
 .tab.active::after {
   content: '';
   position: absolute;
   bottom: 0;
-  left: 20%;
-  right: 20%;
-  height: 2px;
+  left: 0;
+  right: 0;
+  height: 3px;
   background: linear-gradient(90deg, var(--purple), var(--blue));
-  border-radius: 2px 2px 0 0;
+  box-shadow: 0 -2px 10px rgba(167, 139, 250, 0.4);
 }
 
 .tab:not(.active):hover {
