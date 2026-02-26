@@ -30,20 +30,23 @@
         <div class="bg-glow bg-glow-1"></div>
         <div class="bg-glow bg-glow-2"></div>
 
-        <header>
+        <header class="app-header">
             <div class="logo">
                 <span class="logo-icon">✨</span>
-                <div class="logo-text">
-                    <h1>一鍵歡唱KTV</h1>
-                    <p>人聲 · 伴奏 · 一鍵切換 · GPU 加速</p>
-                </div>
+                <span class="logo-text">一鍵歡唱 <span class="accent">KTV</span></span>
             </div>
-            <div id="env-badges" class="env-badges">
-                <!-- Badges injected by main.js -->
-            </div>
+            <div id="env-badges" class="env-badges"></div>
         </header>
 
         <main class="container">
+            <!-- Hero Section -->
+            <section class="hero">
+                <h1 class="hero-title">在 <span class="gradient-text">iPhone 本地</span><br>一鍵歡唱KTV</h1>
+                <p class="hero-sub">人聲 · 伴奏 · 一鍵切換 · GPU 加速</p>
+                <div class="vocal-wave">
+                    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+            </section>
             <!-- Input Card -->
             <section class="card input-card">
                 <div class="tabs" role="tablist">
@@ -53,10 +56,15 @@
 
                 <div class="tab-content" id="panel-url">
                     <form id="search-form" class="url-input-wrap">
-                        <input type="text" id="url-input" class="url-input" placeholder="貼上網址或搜尋歌曲..." required />
+                        <input type="text" id="url-input" class="url-input" placeholder="搜尋 YouTube 歌曲或貼上網址..."
+                            required />
                         <div id="url-clear-btn" class="url-clear-btn" style="display: none;">✕</div>
                         <button type="submit" id="search-btn" class="url-search-btn">🔍</button>
                     </form>
+
+                    <div class="search-status-bar">
+                        <span class="dot"></span> 上傳音樂或貼上 YouTube 連結開始
+                    </div>
 
                     <!-- Search Results -->
                     <div id="search-results" class="search-results" style="display: none;">
