@@ -41,11 +41,33 @@ const FALLBACK_CLIENTS = [
     'tvhtml5'
 ];
 
-// Helper to prepare cookies file
+// Helper to prepare cookies file (converts JSON to Netscape format if needed)
 async function getCookiesFile() {
     if (!YOUTUBE_COOKIES) return null;
-    const cookiePath = path.join(os.tmpdir(), `yt_cookies_${Date.now()}.json`);
-    await fs.writeFile(cookiePath, YOUTUBE_COOKIES);
+    let content = YOUTUBE_COOKIES.trim();
+
+    // Check if it's JSON
+    if (content.startsWith('[') && content.endsWith(']')) {
+        try {
+            const json = JSON.parse(content);
+            const netscape = json.map(c => {
+                const domain = c.domain || '';
+                const flag = domain.startsWith('.') ? 'TRUE' : 'FALSE';
+                const path = c.path || '/';
+                const secure = c.secure ? 'TRUE' : 'FALSE';
+                const expiry = Math.floor(c.expirationDate || 0);
+                const name = c.name || '';
+                const value = c.value || '';
+                return `${domain}\t${flag}\t${path}\t${secure}\t${expiry}\t${name}\t${value}`;
+            }).join('\n');
+            content = `# Netscape HTTP Cookie File\n${netscape}`;
+        } catch (e) {
+            console.error('[Cookies] JSON Parse Error:', e.message);
+        }
+    }
+
+    const cookiePath = path.join(os.tmpdir(), `yt_cookies_${Date.now()}.txt`);
+    await fs.writeFile(cookiePath, content);
     return cookiePath;
 }
 
