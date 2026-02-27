@@ -52,7 +52,7 @@ async function fetchWithFailover(path, options = {}) {
 
     for (const base of endpoints) {
         try {
-            const url = base === '' ? `/api${path}` : `${base}${path}`;
+            const url = base === '' ? `/api${path}` : `${base}/api${path}`;
             console.log(`[Failover] Trying: ${url}`);
 
             const isVercel = base === '';
@@ -179,7 +179,7 @@ export async function checkAPIHealth() {
         for (const base of endpoints) {
             try {
                 // '' = Vercel same-origin /api route
-                const url = base === '' ? '/api/health' : `${base.replace(/\/$/, '')}/health`;
+                const url = base === '' ? '/api/health' : `${base.replace(/\/$/, '')}/api/health`;
                 const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
                 const data = await res.json();
                 if (data.ok || data.status === 'ok') {
