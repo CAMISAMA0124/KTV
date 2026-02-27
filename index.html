@@ -55,11 +55,13 @@
                         <input type="text" id="url-input" class="url-input" placeholder="搜尋 YouTube 歌曲或貼上網址..."
                             required />
                         <div id="url-clear-btn" class="url-clear-btn" style="display: none;">✕</div>
+                        <div id="api-status-dot" class="api-status-dot" title="後端連線狀態"></div>
                         <button type="submit" id="search-btn" class="url-search-btn">🔍</button>
                     </form>
 
                     <div class="search-status-bar">
-                        <span class="dot"></span> <span id="search-status-text">搜尋歌曲或貼上 YouTube 連結開始</span>
+                        <span id="search-status-dot" class="dot"></span> <span id="search-status-text">搜尋歌曲或貼上 YouTube
+                            連結開始</span>
                     </div>
 
                     <!-- Search Results -->

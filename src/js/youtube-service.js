@@ -113,17 +113,20 @@ export async function extractFromURL(url, onProgress, signal) {
  */
 export async function checkAPIHealth() {
     try {
-        // 健康檢查只需要確認其中一個活著
         for (const base of API_ENDPOINTS) {
             try {
-                const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
+                // Remove trailing slash if exists to avoid double //
+                const cleanBase = base.replace(/\/$/, '');
+                const res = await fetch(`${cleanBase}/health`, { signal: AbortSignal.timeout(3000) });
                 const data = await res.json();
-                if (data.ok) return true;
+                if (data.ok || data.status === 'ok') {
+                    return { ok: true, ready: !!data.ready };
+                }
             } catch { continue; }
         }
-        return false;
+        return { ok: false, ready: false };
     } catch {
-        return false;
+        return { ok: false, ready: false };
     }
 }
 

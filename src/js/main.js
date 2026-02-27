@@ -40,7 +40,15 @@ async function init() {
             : '首次使用需下載 AI 模型 (~180MB)'
     );
 
-    checkAPIHealth().then(ok => ui.setAPIStatus(ok));
+    checkAPIHealth().then(({ ok, ready }) => {
+        ui.setAPIStatus(ok && ready, ok && !ready);
+    });
+
+    // 定期檢查狀態 (每 30 秒)
+    setInterval(async () => {
+        const status = await checkAPIHealth();
+        ui.setAPIStatus(status.ok && status.ready, status.ok && !status.ready);
+    }, 30000);
 }
 
 // ─── 統一處理流程 ────────────────────────────────────────────

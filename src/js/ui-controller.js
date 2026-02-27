@@ -32,6 +32,8 @@ export class UIController {
         this.$searchResults = document.getElementById('search-results');
         this.$searchForm = document.getElementById('search-form');
         this.$searchStatusText = document.getElementById('search-status-text');
+        this.$apiStatusDot = document.getElementById('api-status-dot');
+        this.$searchStatusDot = document.getElementById('search-status-dot');
 
         // DOM refs — History
         this.$historySection = document.getElementById('history-section');
@@ -256,9 +258,30 @@ export class UIController {
         window.scrollTo({ top: document.getElementById('mode-selection').offsetTop - 20, behavior: 'smooth' });
     }
 
-    setAPIStatus(ok) {
+    setAPIStatus(ok, isWarming = false) {
         this._apiAvailable = ok;
-        if (!ok) {
+
+        // Update dots
+        if (this.$apiStatusDot) {
+            this.$apiStatusDot.classList.remove('online', 'warming', 'offline');
+            if (ok) {
+                this.$apiStatusDot.classList.add('online');
+                this.$apiStatusDot.title = '後端連線正常';
+            } else if (isWarming) {
+                this.$apiStatusDot.classList.add('warming');
+                this.$apiStatusDot.title = '後端暖機中，請稍候...';
+            } else {
+                this.$apiStatusDot.classList.add('offline');
+                this.$apiStatusDot.title = '後端未啟動或連線失敗';
+            }
+        }
+
+        if (this.$searchStatusDot) {
+            this.$searchStatusDot.style.background = ok ? 'var(--green)' : (isWarming ? 'var(--yellow)' : 'var(--red)');
+            this.$searchStatusDot.style.boxShadow = `0 0 10px ${ok ? 'var(--green)' : (isWarming ? 'var(--yellow)' : 'var(--red)')}`;
+        }
+
+        if (!ok && !isWarming) {
             if (!document.getElementById('api-warning')) {
                 const badge = document.createElement('div');
                 badge.className = 'warning-item';
