@@ -96,7 +96,12 @@ export async function loadModel({ modelKey = DEFAULT_MODEL, backend = EnvStatus.
     };
 
     try {
-        cachedSession = await ort.InferenceSession.create(buffer, sessionOptions);
+        // Logging first few bytes to debug if it's a valid ONNX protobuf
+        const uint8 = new Uint8Array(buffer);
+        console.log(`[ModelLoader] Model first 4 bytes: ${uint8[0]}, ${uint8[1]}, ${uint8[2]}, ${uint8[3]}`);
+
+        // Pass Uint8Array directly instead of ArrayBuffer to prevent offset/parsing issues.
+        cachedSession = await ort.InferenceSession.create(uint8, sessionOptions);
         cachedModelKey = modelKey;
         onStatus?.('✅ AI 引擎啟動完成！');
         return { session: cachedSession, config };
@@ -109,7 +114,8 @@ export async function loadModel({ modelKey = DEFAULT_MODEL, backend = EnvStatus.
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all',
             };
-            cachedSession = await ort.InferenceSession.create(buffer, wsmOptions);
+            const uint8 = new Uint8Array(buffer);
+            cachedSession = await ort.InferenceSession.create(uint8, wsmOptions);
             cachedModelKey = modelKey;
             return { session: cachedSession, config };
         }
