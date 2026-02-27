@@ -57,22 +57,31 @@ export async function runInference(session, left, right, config, { onProgress, o
         // 返回格式相容於 UI: { vocals, accompaniment }
         // demucs-web 回傳: { drums, bass, other, vocals }
         // 我們將 drums+bass+other 合併為 accompaniment
+        // Result format: { drums, bass, other, vocals }
+        // We merge drums + bass + other into accompaniment
         const accompaniment = {
             left: new Float32Array(left.length),
             right: new Float32Array(left.length)
         };
 
-        const stems = ['drums', 'bass', 'other'];
-        stems.forEach(stem => {
+        const mergeStems = ['drums', 'bass', 'other'];
+        for (const stem of mergeStems) {
             const data = result[stem];
-            for (let i = 0; i < left.length; i++) {
-                accompaniment.left[i] += data.left[i];
-                accompaniment.right[i] += data.right[i];
+            if (data) {
+                for (let i = 0; i < left.length; i++) {
+                    accompaniment.left[i] += data.left[i];
+                    accompaniment.right[i] += data.right[i];
+                }
+                // Proactively clear to help GC
+                result[stem] = null;
             }
-        });
+        }
+
+        const vocals = result.vocals;
+        onStatus?.('✅ 音軌分離完成！正在打包...');
 
         return {
-            vocals: result.vocals,
+            vocals: vocals,
             accompaniment: accompaniment
         };
     } catch (e) {

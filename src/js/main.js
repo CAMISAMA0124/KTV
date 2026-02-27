@@ -71,14 +71,16 @@ async function processFile(file, metadata = null, mode = 'ai') {
         ui.setFileName(displayName);
         ui.setProgress(10);
 
-        // 音訊通用處理：解碼與重採樣
-        ui.setState(UIState.PROCESSING);
-        ui.setStatus('🎧 正在解碼音訊...');
-
-        const decoded = await decodeAudioFile(file, msg => ui.setStatus(msg));
+        let decoded = await decodeAudioFile(file, msg => ui.setStatus(msg));
         const targetSampleRate = mode === 'ai' ? MODEL_CONFIG[DEFAULT_MODEL].sampleRate : 44100;
-        const resampled = await resampleBuffer(decoded, targetSampleRate, msg => ui.setStatus(msg));
+
+        let resampled = await resampleBuffer(decoded, targetSampleRate, msg => ui.setStatus(msg));
+        // Clear original decoded buffer to save memory
+        decoded = null;
+
         const { left, right } = bufferToStereoArrays(resampled);
+        // Clear resampled buffer after extracting raw arrays
+        resampled = null;
 
         let separation;
 
