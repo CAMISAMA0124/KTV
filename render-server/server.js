@@ -18,7 +18,7 @@ let isReady = false;
 
 // ── Health Check ───────────────────────────────────────────
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', ready: isReady, timestamp: new Date() });
+    res.json({ ok: true, status: 'ok', ready: isReady, timestamp: new Date() });
 });
 
 // ── Search ─────────────────────────────────────────────────
@@ -38,9 +38,12 @@ app.post('/extract', async (req, res) => {
     const { url } = req.body;
     if (!isReady) return res.status(503).json({ error: 'Server warming up...' });
     try {
-        const { buffer, filename } = await extractAudio(url);
+        const { buffer, filename, info } = await extractAudio(url);
         res.setHeader('Content-Type', 'audio/mp4');
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+        res.setHeader('X-Video-Title', encodeURIComponent(info.title || filename));
+        res.setHeader('X-Video-Duration', info.duration || 0);
+        res.setHeader('Content-Length', buffer.length);
         res.send(buffer);
     } catch (e) {
         res.status(500).json({ error: e.message });
