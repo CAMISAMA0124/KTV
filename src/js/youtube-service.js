@@ -4,9 +4,10 @@
  */
 
 const API_ENDPOINTS = [
-    import.meta.env.VITE_API_BASE || 'https://camisama-ktv.zeabur.app/api',
-    'https://ktv.zeabur.app/api'
-];
+    import.meta.env.VITE_API_BASE,
+    'https://ktv-ey9t.onrender.com', // Render (新後台)
+    'https://camisama-ktv.zeabur.app/api' // Zeabur (舊備援)
+].filter(Boolean).map(url => url.replace(/\/$/, '').replace(/\/api$/, ''));
 
 /**
  * 具備備援機制的 Fetch
@@ -15,16 +16,20 @@ async function fetchWithFailover(path, options = {}) {
     let lastError = null;
 
     for (const base of API_ENDPOINTS) {
-        if (!base || base === '/api') {
-            // 如果是本地開發或未定義則跳過
-            if (base === '/api' && API_ENDPOINTS.length > 1 && !window.location.hostname.includes('localhost')) continue;
-        }
-
         try {
-            console.log(`[Failover] Trying API: ${base}${path}`);
-            const res = await fetch(`${base}${path}`, options);
+            const url = `${base}${path}`;
+            console.log(`[Failover] Trying API: ${url}`);
 
-            // 如果是 500 以上的錯誤或 429 (流量限制)，考慮換下一個
+            // 加入 10 秒超時，避免個別後端卡死
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+            const res = await fetch(url, {
+                ...options,
+                signal: options.signal || controller.signal
+            });
+            clearTimeout(timeoutId);
+
             if (!res.ok && (res.status >= 500 || res.status === 429)) {
                 throw new Error(`API_ERROR_${res.status}`);
             }
@@ -33,7 +38,6 @@ async function fetchWithFailover(path, options = {}) {
         } catch (e) {
             console.warn(`[Failover] ${base} failed: ${e.message}`);
             lastError = e;
-            // 繼續嘗試下一個 base
         }
     }
 
