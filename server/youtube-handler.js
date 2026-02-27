@@ -9,8 +9,10 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
 
-// yt-dlp binary 自動下載到 tmp
-const YTDLP_BINARY = path.join(os.tmpdir(), process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+// yt-dlp binary 路徑設定
+const YTDLP_BINARY = process.platform === 'win32'
+    ? path.join(os.tmpdir(), 'yt-dlp.exe')
+    : '/usr/local/bin/yt-dlp'; // Docker 內建路徑
 
 // FFmpeg fallback paths (常見應用程式附帶的 ffmpeg 或本地 bin)
 const FFMPEG_FALLBACKS = [
@@ -53,14 +55,22 @@ export async function initYtDlp() {
     ytDlp = new YTDlpWrap(YTDLP_BINARY);
     ffmpegPath = await detectFFmpeg();
 
-    // 檢查 binary 是否存在
     try {
         await fs.access(YTDLP_BINARY);
-        console.log('[yt-dlp] Binary already exists:', YTDLP_BINARY);
+        console.log('[yt-dlp] Binary found at:', YTDLP_BINARY);
     } catch {
-        console.log('[yt-dlp] Downloading binary...');
-        await YTDlpWrap.downloadFromGithub(YTDLP_BINARY);
-        console.log('[yt-dlp] Binary downloaded successfully');
+        // 如果是 Linux 且預設路徑不存在，嘗試 tmp
+        const fallback = path.join(os.tmpdir(), 'yt-dlp');
+        try {
+            await fs.access(fallback);
+            ytDlp = new YTDlpWrap(fallback);
+            console.log('[yt-dlp] Binary found at fallback:', fallback);
+        } catch {
+            console.log('[yt-dlp] Downloading binary...');
+            await YTDlpWrap.downloadFromGithub(fallback);
+            ytDlp = new YTDlpWrap(fallback);
+            console.log('[yt-dlp] Binary downloaded to:', fallback);
+        }
     }
 
     return ytDlp;

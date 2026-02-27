@@ -22,7 +22,13 @@ app.use(express.json());
 let ytDlpReady = false;
 
 async function startServer() {
+    // 立即啟動監聽，避免 Zeabur 健康檢查失敗
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[Server] Running on port ${PORT}`);
+    });
+
     try {
+        console.log('[Server] Initializing components...');
         await initYtDlp();
         ytDlpReady = true;
         console.log('[Server] yt-dlp ready');
@@ -30,10 +36,6 @@ async function startServer() {
         console.error('[Server] yt-dlp init failed:', e.message);
         console.error('[Server] YouTube 功能將不可用');
     }
-
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`[Server] Running on port ${PORT}`);
-    });
 }
 
 // ── Health check ────────────────────────────────────────────
