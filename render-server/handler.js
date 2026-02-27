@@ -152,67 +152,48 @@ export async function searchVideos(query, limit = 5) {
     }));
 }
 
-export async function extractAudio(url, onProgress) {
-    console.log('[Extract]: Starting for', url);
+export async function extractAudio(url, res) {
+    console.log('[Extract]: Streaming start for', url);
     const info = await getVideoInfo(url);
     const safeTitle = info.title.replace(/[^\w\s-]/g, '').trim().substring(0, 50) || 'audio';
-    const tmpPath = path.join(os.tmpdir(), `render_${Date.now()}.m4a`);
+
+    res.setHeader('Content-Type', 'audio/mp4');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.m4a"`);
+    res.setHeader('X-Video-Title', encodeURIComponent(info.title || 'audio'));
+    res.setHeader('X-Video-Duration', info.duration || 0);
 
     const cookiePath = await getCookiesFile();
     const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
-    const clients = cookiePath ? [null] : FALLBACK_CLIENTS;
+    const nodePath = process.platform === 'win32' ? 'node' : '/usr/local/bin/node';
 
-    for (const client of clients) {
-        try {
-            console.log(`[Extract] Trying client: ${client || 'default'} (Cookies: ${!!cookiePath})`);
-            await new Promise((resolve, reject) => {
-                const nodePath = process.platform === 'win32' ? 'node' : '/usr/local/bin/node';
-                const args = [
-                    url,
-                    '-f', 'bestaudio[ext=m4a]/bestaudio/best', // Avoid re-encoding to save CPU/RAM
-                    '--no-playlist', '--no-part', '--no-cache-dir', '--force-overwrites',
-                    '--output', tmpPath,
-                    '--js-runtimes', nodePath,
-                    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    ...cookieFlags
-                ];
-                if (YOUTUBE_PROXY) args.push('--proxy', YOUTUBE_PROXY);
-                if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
+    // Best strategy: Output directly to stdout and pipe to 'res'
+    const args = [
+        url,
+        '-f', 'bestaudio[ext=m4a]/bestaudio/best',
+        '--no-playlist', '--no-part', '--no-cache-dir',
+        '--js-runtimes', nodePath,
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '-o', '-', // Output to STDOUT
+        ...cookieFlags
+    ];
+    if (YOUTUBE_PROXY) args.push('--proxy', YOUTUBE_PROXY);
 
-                const process = ytDlp.exec(args);
-                let lastOutput = '';
+    console.log('[Extract] Spawning yt-dlp for streaming...');
+    const ytStream = ytDlp.execStream(args);
 
-                process.on('ytDlpEvent', (eventType, eventData) => {
-                    lastOutput = eventData;
-                    if (eventType === 'download' && onProgress) {
-                        const match = eventData.match(/(\d+(?:\.\d+)?)%/);
-                        if (match) onProgress(parseFloat(match[1]));
-                    }
-                });
+    ytStream.on('error', (err) => {
+        console.error('[Extract] Stream Error:', err);
+        if (!res.headersSent) res.status(500).send(err.message);
+    });
 
-                process.on('close', (code) => {
-                    if (code === 0) resolve();
-                    else reject(new Error(`yt-dlp exited with code ${code}. Last: ${lastOutput}`));
-                });
+    // Pipe directly to response
+    ytStream.pipe(res);
 
-                process.on('error', reject);
-            });
-            success = true;
-            break;
-        } catch (e) {
-            console.warn(`[Extract] Client ${client} failed:`, e.message);
-        }
-    }
-
-    if (!success) throw new Error('所有擷取方式皆已失敗，YouTube 可能封鎖了此 IP');
-
-    try {
-        const buffer = await fs.readFile(tmpPath);
-        fs.unlink(tmpPath).catch(() => { });
-        console.log('[Extract]: Success');
-        return { buffer, filename: `${safeTitle}.m4a`, info };
-    } catch (e) {
-        console.error('[Extract]: Post-processing Error:', e);
-        throw e;
-    }
+    return new Promise((resolve) => {
+        ytStream.on('end', () => {
+            console.log('[Extract] Streaming success');
+            if (cookiePath) fs.unlink(cookiePath).catch(() => { });
+            resolve();
+        });
+    });
 }

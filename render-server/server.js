@@ -41,19 +41,13 @@ app.post('/extract', async (req, res) => {
     const { url } = req.body;
     if (!isReady) return res.status(503).json({ error: 'Server warming up...' });
     try {
-        const { buffer, filename, info } = await extractAudio(url);
-        res.setHeader('Content-Type', 'audio/mp4');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
-        res.setHeader('X-Video-Title', encodeURIComponent(info.title || filename));
-        res.setHeader('X-Video-Duration', info.duration || 0);
-        res.setHeader('Content-Length', buffer.length);
-        res.send(buffer);
+        // Stream directly to the response
+        await extractAudio(url, res);
     } catch (e) {
-        console.error('[Extract Error]:', e);
-        res.status(500).json({
-            error: '擷取失敗：' + (e.message || '未知錯誤'),
-            tip: '多試幾次，或檢查 YouTube 網址是否格式正確'
-        });
+        console.error('[Extract Error]:', e.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: e.message });
+        }
     }
 });
 
