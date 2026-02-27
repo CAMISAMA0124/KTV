@@ -38,9 +38,9 @@
             </div>
             <div class="header-actions">
                 <div id="env-badges" class="env-badges"></div>
-                <button id="engine-btn" class="engine-btn" title="引擎設定">
+                <button id="engine-btn" class="engine-btn" title="設定">
                     <span class="engine-indicator">●</span>
-                    <span class="engine-label">發動引擎</span>
+                    <span class="engine-label">設定</span>
                 </button>
             </div>
         </header>
@@ -50,39 +50,37 @@
             <div class="drawer-handle"></div>
             <div class="drawer-content">
                 <div class="drawer-header">
-                    <h2>⚙️ 引擎控制中心</h2>
+                    <h2>⚙️ 設定與管理</h2>
                     <button id="close-drawer" class="close-drawer">✕</button>
                 </div>
 
                 <div class="engine-status-panel">
                     <div class="status-card"
                         style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 24px; display: flex; align-items: center; gap: 16px; border: 1px solid rgba(255,255,255,0.1);">
-                        <div class="status-icon" style="font-size: 2.2rem;">🚀</div>
+                        <div class="status-icon" style="font-size: 2.2rem;">📱</div>
                         <div class="status-info">
-                            <div class="status-title" style="font-weight: 800; font-size: 1.1rem;">自動雲端引擎 (AI Powered)
-                            </div>
+                            <div class="status-title" style="font-weight: 800; font-size: 1.1rem;">手機直接提取模式</div>
                             <div class="status-desc" style="font-size: 0.85rem; opacity: 0.6; margin-top: 4px;">
-                                已優化：使用電視端協定繞過封鎖，100% 免設定即刻點唱。</div>
+                                音訊將下載並暫存在您的設備中，不佔用雲端流量。</div>
                         </div>
                     </div>
+                </div>
+
+                <div class="drawer-actions" style="margin-top: 32px; display: flex; flex-direction: column; gap: 12px;">
+                    <button id="clear-cache-btn" class="btn-text"
+                        style="color: var(--red); opacity: 0.8; font-weight: 600; padding: 16px; background: rgba(248, 113, 113, 0.05); border-radius: 16px;">🧹
+                        清除所有暫存與歷史紀錄</button>
+                    <button id="toggle-manual" class="btn-text" style="opacity: 0.3; font-size: 0.8rem;">進階身分設定</button>
                 </div>
 
                 <div id="manual-settings" style="display: none; margin-top: 24px;">
                     <div class="setting-group" style="margin-bottom: 0;">
                         <label style="opacity: 0.8;">🔑 專家鑰匙 (YouTube Cookie JSON)</label>
-                        <textarea id="cookie-input" style="height: 120px;"
-                            placeholder='選填項目，適合極少數知道如何匯出 Cookie 的用戶...'></textarea>
+                        <textarea id="cookie-input" style="height: 120px;" placeholder='選填項目...'></textarea>
                         <input type="hidden" id="proxy-input" value="" />
                         <input type="hidden" id="backend-input" value="" />
+                        <button id="save-settings" class="btn btn-primary" style="margin-top: 10px;">儲存設定</button>
                     </div>
-                </div>
-
-                <div class="drawer-actions" style="margin-top: 32px; display: flex; flex-direction: column; gap: 12px;">
-                    <button id="save-settings" class="btn btn-primary" style="padding: 16px;">優化並發動引擎</button>
-                    <button id="toggle-manual" class="btn-text"
-                        style="opacity: 0.5; font-size: 0.8rem; text-decoration: underline;">顯示進階專家設定 (Cookies)</button>
-                    <button id="clear-settings" class="btn-text"
-                        style="color: var(--red); display: none;">移除專家設定</button>
                 </div>
             </div>
         </div>

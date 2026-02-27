@@ -62,16 +62,18 @@ export function getHistory() {
     return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
 }
 
-export async function deleteFromHistory(id) {
+export async function clearAllData() {
     try {
-        const history = getHistory();
-        const filtered = history.filter(h => h.id !== id);
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered));
-
+        localStorage.removeItem(HISTORY_KEY);
         if (!navigator.storage || !navigator.storage.getDirectory) return;
         const root = await navigator.storage.getDirectory();
-        await root.removeEntry(id, { recursive: true });
+
+        // Iterate through all entries and remove them
+        for await (const entry of root.values()) {
+            await root.removeEntry(entry.name, { recursive: true });
+        }
+        console.log('[Storage] All local data cleared');
     } catch (e) {
-        console.error('[Storage] Delete failed:', e);
+        console.error('[Storage] Clear all failed:', e);
     }
 }

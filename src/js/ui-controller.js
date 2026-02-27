@@ -1,5 +1,5 @@
 import { searchYouTube, fetchVideoInfo, isYouTubeURL, EngineConfig } from './youtube-service.js';
-import { saveStem, addToHistory, getHistory } from './storage-service.js';
+import { saveStem, addToHistory, getHistory, clearAllData } from './storage-service.js';
 import { ktv } from './ktv-player.js';
 
 export const UIState = {
@@ -69,9 +69,8 @@ export class UIController {
         this.$engineBtn = document.getElementById('engine-btn');
         this.$engineDrawer = document.getElementById('engine-drawer');
         this.$drawerOverlay = document.getElementById('drawer-overlay');
-        this.$closeDrawer = document.getElementById('close-drawer');
         this.$saveSettings = document.getElementById('save-settings');
-        this.$clearSettings = document.getElementById('clear-settings');
+        this.$clearCacheBtn = document.getElementById('clear-cache-btn');
         this.$toggleManual = document.getElementById('toggle-manual');
         this.$manualArea = document.getElementById('manual-settings');
         this.$cookieInput = document.getElementById('cookie-input');
@@ -138,10 +137,11 @@ export class UIController {
             window.location.reload();
         });
 
-        this.$clearSettings?.addEventListener('click', () => {
-            if (confirm('確定要拔出鑰匙並清除所有設定嗎？')) {
-                EngineConfig.clear();
-                window.location.reload();
+        this.$clearCacheBtn?.addEventListener('click', async () => {
+            if (confirm('⚠️ 確定要清除手機內所有暫存的歌曲與歷史紀錄嗎？')) {
+                await clearAllData();
+                alert('🧹 暫存已清空！');
+                location.reload();
             }
         });
 
