@@ -97,9 +97,11 @@ export async function extractAudio(url, onProgress) {
     await new Promise((resolve, reject) => {
         const process = ytDlp.exec([
             url,
-            '-f', 'ba', // Best audio
+            '-f', 'ba',
             '--no-playlist',
-            '--no-part', // Avoid .part files issues
+            '--no-part',
+            '--no-cache-dir',
+            '--force-overwrites',
             '--output', tmpPath,
         ]);
 

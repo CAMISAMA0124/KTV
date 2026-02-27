@@ -184,7 +184,7 @@ body {
 
 .url-input-wrap {
   position: relative;
-  padding: 24px 24px 12px;
+  padding: 24px;
 }
 
 .url-input {
@@ -212,8 +212,6 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: -6px;
-  /* Adjust for wrap padding offset */
 }
 
 .url-clear-btn {
