@@ -36,9 +36,9 @@ export async function initYtDlp() {
 }
 
 const FALLBACK_CLIENTS = [
-    'tv,web',
-    'android,ios',
-    'ios,web',
+    'android_music',
+    'mweb',
+    'ios',
     'tvhtml5'
 ];
 
