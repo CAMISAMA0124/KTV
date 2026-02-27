@@ -13,8 +13,9 @@
     <title>一鍵歡唱KTV — iPhone 本地分離</title>
 
     <!-- PWA -->
-    <link rel="manifest" href="public/manifest.json" />
-    <link rel="apple-touch-icon" href="public/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
 
     <link rel="stylesheet" href="src/style.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -63,7 +64,7 @@
                     </form>
 
                     <div class="search-status-bar">
-                        <span class="dot"></span> 上傳音樂或貼上 YouTube 連結開始
+                        <span class="dot"></span> <span id="search-status-text">上傳音樂或貼上 YouTube 連結開始</span>
                     </div>
 
                     <!-- Search Results -->

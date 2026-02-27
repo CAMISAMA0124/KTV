@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3001;
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:4173'],
+    origin: ['http://localhost:5173', 'http://localhost:4173', 'https://aiktv.vercel.app'],
     credentials: true,
 }));
 app.use(express.json());
@@ -31,8 +31,8 @@ async function startServer() {
         console.error('[Server] YouTube 功能將不可用');
     }
 
-    app.listen(PORT, '127.0.0.1', () => {
-        console.log(`[Server] Running on http://127.0.0.1:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[Server] Running on port ${PORT}`);
     });
 }
 

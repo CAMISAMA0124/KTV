@@ -36,6 +36,7 @@ export class UIController {
         this.$videoDuration = document.getElementById('video-duration');
         this.$searchResults = document.getElementById('search-results');
         this.$searchForm = document.getElementById('search-form');
+        this.$searchStatusText = document.getElementById('search-status-text');
 
         // DOM refs — History
         this.$historySection = document.getElementById('history-section');
@@ -382,7 +383,10 @@ export class UIController {
         this.$dropZone.classList.toggle('disabled', [UIState.LOADING_MODEL, UIState.PROCESSING].includes(state));
     }
 
-    setStatus(msg) { if (this.$statusText) this.$statusText.textContent = msg; }
+    setStatus(msg) {
+        if (this.$statusText) this.$statusText.textContent = msg;
+        if (this.$searchStatusText) this.$searchStatusText.textContent = msg;
+    }
 
     setProgress(pct, etaSeconds = null) {
         const c = Math.max(0, Math.min(100, pct));

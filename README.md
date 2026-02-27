@@ -34,7 +34,7 @@ npm run dev:all
 
 本專案的前端可以直接部署至 Vercel。部署後，原本在 `127.0.0.1` 下受限的 YouTube 播放器將因為有了正式網域而恢復正常播放。
 
-**注意**：YouTube 擷取後端 (`/api/extract`) 需要一個支援 Node.js 與二進位執行檔的環境。建議將後端單獨部署至 Render 或 Railway，並在 `vite.config.js` 中修改代理設定。
+**注意**：YouTube 擷取後端 (`/api/search`, `/api/extract`) 需要一個支援 Node.js 與二進位執行檔的環境。建議將後端部署至 **Zeabur** (支援 Docker)，並在前端設定 `VITE_API_BASE` 指向該後端網址。
 
 ---
 Made with ❤️ for iPhone Users
