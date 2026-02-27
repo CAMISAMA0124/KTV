@@ -11,7 +11,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL; // e.g. https://your-app.onrender.com
 
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Disposition', 'X-Video-Title', 'X-Video-Duration', 'Content-Length']
+}));
 app.use(express.json());
 
 let isReady = false;
@@ -82,5 +87,5 @@ app.listen(PORT, async () => {
 });
 
 app.get('/', (req, res) => {
-    res.send('Audio API for Render is active. Use /health to check status.');
+    res.json({ message: 'Audio API for Render is active', endpoints: ['/health', '/search', '/extract'] });
 });
