@@ -10,8 +10,8 @@ import fs from 'fs/promises';
 import https from 'https';
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBBZzotQ2jYfdyqrZNhKcO-1AoGS5vI76k';
+const YOUTUBE_COOKIES = process.env.YOUTUBE_COOKIES || '';
 
-// Use system yt-dlp first (pre-installed in Docker)
 const LOCAL_YTDLP = process.platform === 'win32'
     ? path.join(os.tmpdir(), 'yt-dlp.exe')
     : path.join(os.tmpdir(), 'yt-dlp');
@@ -41,23 +41,36 @@ const FALLBACK_CLIENTS = [
     'tvhtml5'
 ];
 
+// Helper to prepare cookies file
+async function getCookiesFile() {
+    if (!YOUTUBE_COOKIES) return null;
+    const cookiePath = path.join(os.tmpdir(), `yt_cookies_${Date.now()}.json`);
+    await fs.writeFile(cookiePath, YOUTUBE_COOKIES);
+    return cookiePath;
+}
+
 export async function getVideoInfo(url) {
     let lastError = null;
+    const cookiePath = await getCookiesFile();
+    const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
+
     for (const client of FALLBACK_CLIENTS) {
         try {
-            console.log(`[yt-dlp] Trying getVideoInfo with client: ${client}`);
+            console.log(`[yt-dlp] Trying getVideoInfo with client: ${client} (Cookies: ${!!cookiePath})`);
             const result = await ytDlp.execPromise([
-                url, '--dump-json',
-                '--no-cache-dir',
+                url, '--dump-json', '--no-cache-dir',
                 '--extractor-args', `youtube:player-client=${client}`,
-                '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+                '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+                ...cookieFlags
             ]);
+            if (cookiePath) await fs.unlink(cookiePath).catch(() => { });
             return JSON.parse(result);
         } catch (e) {
             console.warn(`[yt-dlp] Client ${client} failed:`, e.message);
             lastError = e;
         }
     }
+    if (cookiePath) await fs.unlink(cookiePath).catch(() => { });
     throw lastError;
 }
 
@@ -108,9 +121,12 @@ export async function extractAudio(url, onProgress) {
     const tmpPath = path.join(os.tmpdir(), `render_${Date.now()}.m4a`);
 
     let success = false;
+    const cookiePath = await getCookiesFile();
+    const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
+
     for (const client of FALLBACK_CLIENTS) {
         try {
-            console.log(`[Extract] Trying client: ${client}`);
+            console.log(`[Extract] Trying client: ${client} (Cookies: ${!!cookiePath})`);
             await new Promise((resolve, reject) => {
                 const process = ytDlp.exec([
                     url,
@@ -119,6 +135,7 @@ export async function extractAudio(url, onProgress) {
                     '--extractor-args', `youtube:player-client=${client}`,
                     '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
                     '--output', tmpPath,
+                    ...cookieFlags
                 ]);
 
                 process.on('ytDlpEvent', (eventType, eventData) => {
