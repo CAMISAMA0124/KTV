@@ -76,19 +76,20 @@ export async function getVideoInfo(url) {
     const cookiePath = await getCookiesFile();
     const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
 
-    for (const client of FALLBACK_CLIENTS) {
+    // If we have cookies, start with default (web) as forced clients often break cookies
+    const clients = cookiePath ? [null] : FALLBACK_CLIENTS;
+
+    for (const client of clients) {
         try {
-            console.log(`[yt-dlp] Trying getVideoInfo with client: ${client} (Cookies: ${!!cookiePath})`);
-            const result = await ytDlp.execPromise([
-                url, '--dump-json', '--no-cache-dir',
-                '--extractor-args', `youtube:player-client=${client}`,
-                '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-                ...cookieFlags
-            ]);
+            console.log(`[yt-dlp] Trying getVideoInfo with client: ${client || 'default'} (Cookies: ${!!cookiePath})`);
+            const args = [url, '--dump-json', '--no-cache-dir', ...cookieFlags];
+            if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
+
+            const result = await ytDlp.execPromise(args);
             if (cookiePath) await fs.unlink(cookiePath).catch(() => { });
             return JSON.parse(result);
         } catch (e) {
-            console.warn(`[yt-dlp] Client ${client} failed:`, e.message);
+            console.warn(`[yt-dlp] Client ${client || 'default'} failed:`, e.message);
             lastError = e;
         }
     }
@@ -142,23 +143,24 @@ export async function extractAudio(url, onProgress) {
     const safeTitle = info.title.replace(/[^\w\s-]/g, '').trim().substring(0, 50) || 'audio';
     const tmpPath = path.join(os.tmpdir(), `render_${Date.now()}.m4a`);
 
-    let success = false;
     const cookiePath = await getCookiesFile();
     const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
+    const clients = cookiePath ? [null] : FALLBACK_CLIENTS;
 
-    for (const client of FALLBACK_CLIENTS) {
+    for (const client of clients) {
         try {
-            console.log(`[Extract] Trying client: ${client} (Cookies: ${!!cookiePath})`);
+            console.log(`[Extract] Trying client: ${client || 'default'} (Cookies: ${!!cookiePath})`);
             await new Promise((resolve, reject) => {
-                const process = ytDlp.exec([
+                const args = [
                     url,
                     '-f', 'ba/b',
                     '--no-playlist', '--no-part', '--no-cache-dir', '--force-overwrites',
-                    '--extractor-args', `youtube:player-client=${client}`,
-                    '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
                     '--output', tmpPath,
                     ...cookieFlags
-                ]);
+                ];
+                if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
+
+                const process = ytDlp.exec(args);
 
                 process.on('ytDlpEvent', (eventType, eventData) => {
                     if (eventType === 'download' && onProgress) {

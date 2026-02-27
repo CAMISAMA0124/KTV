@@ -7,7 +7,7 @@ async function test() {
     console.log('--- Checking yt-dlp ---');
     await initYtDlp();
 
-    const testUrl = 'https://www.youtube.com/watch?v=Bbp9ZaJD_eA';
+    const testUrl = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
     console.log(`--- Testing Extraction: ${testUrl} ---`);
 
     try {
