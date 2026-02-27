@@ -166,53 +166,74 @@ body {
 
 .url-input-wrap {
   position: relative;
-  padding: 24px;
+  padding: 24px 24px 12px;
 }
 
 .url-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   border: 2px solid var(--border);
-  border-radius: 22px;
-  padding: 18px 60px 18px 24px;
+  border-radius: 20px;
+  padding: 18px 100px 18px 20px;
   color: #fff;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   outline: none;
-  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: all 0.3s;
 }
 
 .url-input:focus {
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 0 30px rgba(167, 139, 250, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.search-controls {
+  position: absolute;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: -6px;
+  /* Adjust for wrap padding offset */
+}
+
+.url-clear-btn {
+  font-size: 1.2rem;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 5px;
+  transition: 0.2s;
+}
+
+.url-clear-btn:hover {
+  color: #fff;
 }
 
 .url-search-btn {
-  position: absolute;
-  right: 28px;
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   cursor: pointer;
-  transition: 0.3s;
+  display: flex;
+  align-items: center;
+  transition: 0.2s;
 }
 
 .url-search-btn:hover {
-  transform: scale(1.2) rotate(8deg);
+  transform: scale(1.1);
 }
 
 .api-status-dot {
-  position: absolute;
-  right: 64px;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   transition: 0.3s;
 }
 
 .api-status-dot.online {
   background: var(--green);
-  box-shadow: 0 0 15px var(--green);
+  box-shadow: 0 0 10px var(--green);
 }
 
 .api-status-dot.warming {
@@ -222,7 +243,7 @@ body {
 
 .api-status-dot.offline {
   background: var(--red);
-  box-shadow: 0 0 15px var(--red);
+  box-shadow: 0 0 10px var(--red);
 }
 
 @keyframes pulse {
