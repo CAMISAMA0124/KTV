@@ -7,6 +7,11 @@
 import express from 'express';
 import cors from 'cors';
 import { initYtDlp, extractAudio, getVideoInfo, searchVideos } from './youtube-handler.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +22,10 @@ app.use(cors({
     credentials: true,
 }));
 app.use(express.json());
+
+// ── 提供靜態文件 (Vite 構建輸出) ──────────────────────────────
+const distPath = join(__dirname, '../dist');
+app.use(express.static(distPath));
 
 // ── Init ────────────────────────────────────────────────────
 let ytDlpReady = false;
@@ -144,6 +153,14 @@ function isYouTubeURL(url) {
         return false;
     }
 }
+
+// ── Fallback 路由 (支援 SPA 重新整理) ────────────────────────
+app.get('*', (req, res) => {
+    // 如果不是 API 請求，則返回 index.html
+    if (!req.path.startsWith('/api')) {
+        res.sendFile(join(__dirname, '../dist/index.html'));
+    }
+});
 
 // ── Start ────────────────────────────────────────────────────
 startServer().catch(console.error);

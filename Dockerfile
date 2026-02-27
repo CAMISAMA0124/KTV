@@ -18,10 +18,13 @@ WORKDIR /app
 
 # 複製依賴文件並安裝
 COPY package*.json ./
-RUN npm install --production
+RUN npm install
 
 # 複製所有檔案
 COPY . .
+
+# 構建前端靜態檔案
+RUN npm run build
 
 # 設定環境變數
 ENV NODE_ENV=production
