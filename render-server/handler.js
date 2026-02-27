@@ -84,6 +84,7 @@ export async function getVideoInfo(url) {
             console.log(`[yt-dlp] Trying getVideoInfo with client: ${client || 'default'} (Cookies: ${!!cookiePath})`);
             const args = [
                 url, '--dump-json', '--no-cache-dir',
+                '--js-runtimes', 'node',
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 ...cookieFlags
             ];
@@ -160,6 +161,7 @@ export async function extractAudio(url, onProgress) {
                     '-f', 'ba/b',
                     '--no-playlist', '--no-part', '--no-cache-dir', '--force-overwrites',
                     '--output', tmpPath,
+                    '--js-runtimes', 'node',
                     '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     ...cookieFlags
                 ];
