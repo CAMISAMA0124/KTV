@@ -8,8 +8,9 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
 
-// yt-dlp binary path
-const YTDLP_BINARY = process.platform === 'win32'
+// Use system yt-dlp first (pre-installed in Docker)
+const SYSTEM_YTDLP = '/usr/local/bin/yt-dlp';
+const LOCAL_YTDLP = process.platform === 'win32'
     ? path.join(os.tmpdir(), 'yt-dlp.exe')
     : path.join(os.tmpdir(), 'yt-dlp');
 
@@ -17,15 +18,27 @@ let ytDlp = null;
 
 export async function initYtDlp() {
     try {
-        await fs.access(YTDLP_BINARY);
-        ytDlp = new YTDlpWrap(YTDLP_BINARY);
-        console.log('[yt-dlp] Existing binary found.');
-    } catch {
-        console.log('[yt-dlp] Downloading binary to tmp...');
-        await YTDlpWrap.downloadFromGithub(YTDLP_BINARY);
-        ytDlp = new YTDlpWrap(YTDLP_BINARY);
+        // First try system yt-dlp
         if (process.platform !== 'win32') {
-            await fs.chmod(YTDLP_BINARY, 0o755);
+            await fs.access(SYSTEM_YTDLP);
+            ytDlp = new YTDlpWrap(SYSTEM_YTDLP);
+            console.log('[yt-dlp] Using system binary at', SYSTEM_YTDLP);
+            return ytDlp;
+        }
+    } catch { }
+
+    try {
+        // Then try local binary
+        await fs.access(LOCAL_YTDLP);
+        ytDlp = new YTDlpWrap(LOCAL_YTDLP);
+        console.log('[yt-dlp] Using local binary at', LOCAL_YTDLP);
+    } catch {
+        // Final fallback: download (might fail on some restricted systems)
+        console.log('[yt-dlp] No binary found. Downloading to tmp...');
+        await YTDlpWrap.downloadFromGithub(LOCAL_YTDLP);
+        ytDlp = new YTDlpWrap(LOCAL_YTDLP);
+        if (process.platform !== 'win32') {
+            await fs.chmod(LOCAL_YTDLP, 0o755);
         }
     }
     return ytDlp;
@@ -42,6 +55,7 @@ export async function getVideoInfo(url) {
 
 export async function searchVideos(query, limit = 5) {
     try {
+        // Using -J for faster dump-json
         const result = await ytDlp.execPromise([
             `ytsearch${limit}:${query}`,
             '--dump-json',
@@ -79,7 +93,7 @@ export async function extractAudio(url, onProgress) {
             url,
             '-f', 'ba', // Best audio
             '--no-playlist',
-            '--no-part', // Avoid issues with .part files
+            '--no-part', // Avoid .part files issues
             '--output', tmpPath,
         ]);
 
