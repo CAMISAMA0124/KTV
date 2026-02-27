@@ -27,9 +27,13 @@ app.get('/health', (req, res) => {
 // ── Search ─────────────────────────────────────────────────
 app.post('/search', async (req, res) => {
     const { query } = req.body;
+    const overrides = {
+        cookies: req.headers['x-youtube-cookies'],
+        proxy: req.headers['x-youtube-proxy']
+    };
     if (!isReady) return res.status(503).json({ error: 'Server warming up...' });
     try {
-        const results = await searchVideos(query);
+        const results = await searchVideos(query, overrides);
         res.json({ results });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -39,10 +43,14 @@ app.post('/search', async (req, res) => {
 // ── Extract ────────────────────────────────────────────────
 app.post('/extract', async (req, res) => {
     const { url } = req.body;
+    const overrides = {
+        cookies: req.headers['x-youtube-cookies'],
+        proxy: req.headers['x-youtube-proxy']
+    };
     if (!isReady) return res.status(503).json({ error: 'Server warming up...' });
     try {
         // Stream directly to the response
-        await extractAudio(url, res);
+        await extractAudio(url, res, overrides);
     } catch (e) {
         console.error('[Extract Error]:', e.message);
         if (!res.headersSent) {

@@ -69,32 +69,188 @@ body {
   background: radial-gradient(circle, var(--accent-blue), transparent);
 }
 
-/* 🟢 App Bar */
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  padding: calc(var(--safe-top) + 18px) 24px 18px;
-  background: rgba(3, 3, 8, 0.75);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-bottom: 1px solid var(--border);
+/* 🟢 Header Actions & Engine Button */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.engine-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 6px 14px 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.engine-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.engine-indicator {
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--text-3);
+  /* Default off */
+  transition: color 0.5s ease;
+}
+
+.engine-btn.active .engine-indicator {
+  color: var(--green);
+  text-shadow: 0 0 12px var(--green);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 🟢 Engine Settings Drawer (Bottom Sheet) */
+.engine-drawer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(20, 20, 30, 0.95);
+  backdrop-filter: blur(50px) saturate(200%);
+  -webkit-backdrop-filter: blur(50px) saturate(200%);
+  border-top: 1px solid var(--border);
+  border-radius: 32px 32px 0 0;
+  padding: 12px 24px calc(var(--safe-bot) + 32px);
+  transform: translateY(100%);
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.engine-drawer.open {
+  transform: translateY(0);
+}
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  backdrop-filter: blur(4px);
+}
+
+.drawer-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer-handle {
+  width: 40px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 99px;
+  margin: 0 auto 20px;
+}
+
+.drawer-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 8px;
 }
 
-.logo-text {
-  font-size: 1.35rem;
-  font-weight: 900;
-  letter-spacing: -1px;
+.drawer-header h2 {
+  font-size: 1.2rem;
+  font-weight: 800;
 }
 
-.logo-text .accent {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+.drawer-desc {
+  font-size: 0.85rem;
+  color: var(--text-3);
+  margin-bottom: 24px;
+}
+
+.close-drawer {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.setting-group {
+  margin-bottom: 20px;
+}
+
+.setting-group label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 8px;
+  margin-left: 4px;
+}
+
+.setting-group textarea,
+.setting-group input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.setting-group textarea {
+  height: 100px;
+  resize: none;
+  font-size: 0.8rem;
+}
+
+.setting-group input:focus,
+.setting-group textarea:focus {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.1);
+}
+
+.btn-text {
+  background: transparent;
+  color: var(--text-3);
+  font-size: 0.85rem;
+  padding: 12px;
+  margin-top: 8px;
+  width: 100%;
 }
 
 /* 🟢 Container */

@@ -5,14 +5,41 @@
 
 // Vercel /api routes are same-origin (no CORS, rotating IPs) → always first
 // Render is fallback
-const SAME_ORIGIN_API = [''];  // '' = relative path → uses current domain's /api
+// ── Engine Engine Config (Ignition System) ──────────────────
+export const EngineConfig = {
+    load() {
+        try {
+            const saved = localStorage.getItem('ktv_engine_config');
+            return saved ? JSON.parse(saved) : { cookies: '', proxy: '', backend: '' };
+        } catch { return { cookies: '', proxy: '', backend: '' }; }
+    },
+    save(config) {
+        localStorage.setItem('ktv_engine_config', JSON.stringify(config));
+    },
+    clear() {
+        localStorage.removeItem('ktv_engine_config');
+    },
+    getDynamicAPIs() {
+        const config = this.load();
+        const apis = [];
+        if (config.backend) apis.push(config.backend);
+        return [...apis, ...SAME_ORIGIN_API, ...EXTERNAL_APIS];
+    }
+};
+
+const SAME_ORIGIN_API = [''];
 const EXTERNAL_APIS = [
-    'https://wicked-maps-return.loca.lt', // Google Colab (Priority)
+    'https://wicked-maps-return.loca.lt', // Default shared colab if alive
     import.meta.env.VITE_API_BASE,
     'https://ktv-ey9t.onrender.com',
 ].filter(Boolean).map(url => url.replace(/\/$/, '').replace(/\/api$/, ''));
 
-const API_ENDPOINTS = [...SAME_ORIGIN_API, ...EXTERNAL_APIS];
+function getEffectiveEndpoints() {
+    const config = EngineConfig.load();
+    const list = config.backend ? [config.backend] : [];
+    const combined = [...list, ...SAME_ORIGIN_API, ...EXTERNAL_APIS];
+    return [...new Set(combined)]; // Unique
+}
 
 /**
  * 具備備援機制的 Fetch
@@ -20,21 +47,25 @@ const API_ENDPOINTS = [...SAME_ORIGIN_API, ...EXTERNAL_APIS];
 async function fetchWithFailover(path, options = {}) {
     let lastError = null;
 
-    for (const base of API_ENDPOINTS) {
+    const endpoints = getEffectiveEndpoints();
+    const config = EngineConfig.load();
+
+    for (const base of endpoints) {
         try {
-            // '' = Vercel same-origin /api route, otherwise external base
             const url = base === '' ? `/api${path}` : `${base}${path}`;
             console.log(`[Failover] Trying: ${url}`);
 
             const isVercel = base === '';
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), isVercel ? 30000 : 10000);
+            const timeoutId = setTimeout(() => controller.abort(), isVercel ? 30000 : 20000);
 
             const res = await fetch(url, {
                 ...options,
                 headers: {
                     ...options.headers,
-                    'Bypass-Tunnel-Reminder': 'true' // Bypass localtunnel warning page
+                    'Bypass-Tunnel-Reminder': 'true',
+                    'X-Youtube-Cookies': config.cookies || '', // Forward the "Key"
+                    'X-Youtube-Proxy': config.proxy || '',   // Forward the "Proxy"
                 },
                 signal: options.signal || controller.signal
             });
@@ -121,20 +152,17 @@ export async function extractFromURL(url, onProgress, signal) {
     return new File([buffer], filename, { type: 'audio/mp4' });
 }
 
-/**
- * 檢查後端 API 是否可用
- * @returns {Promise<boolean>}
- */
 export async function checkAPIHealth() {
     try {
-        for (const base of API_ENDPOINTS) {
+        const endpoints = getEffectiveEndpoints();
+        for (const base of endpoints) {
             try {
                 // '' = Vercel same-origin /api route
                 const url = base === '' ? '/api/health' : `${base.replace(/\/$/, '')}/health`;
                 const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
                 const data = await res.json();
                 if (data.ok || data.status === 'ok') {
-                    return { ok: true, ready: true }; // Vercel and updated Render are always ready
+                    return { ok: true, ready: true };
                 }
             } catch { continue; }
         }

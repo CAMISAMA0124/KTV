@@ -1,4 +1,4 @@
-import { searchYouTube, fetchVideoInfo, isYouTubeURL } from './youtube-service.js';
+import { searchYouTube, fetchVideoInfo, isYouTubeURL, EngineConfig } from './youtube-service.js';
 import { saveStem, addToHistory, getHistory } from './storage-service.js';
 import { ktv } from './ktv-player.js';
 
@@ -65,10 +65,20 @@ export class UIController {
         this.$pitchUp = document.getElementById('pitch-up');
         this.$pitchVal = document.getElementById('pitch-val');
 
-        this.$panelUrl = document.getElementById('panel-url');
+        // DOM refs — Engine Drawer
+        this.$engineBtn = document.getElementById('engine-btn');
+        this.$engineDrawer = document.getElementById('engine-drawer');
+        this.$drawerOverlay = document.getElementById('drawer-overlay');
+        this.$closeDrawer = document.getElementById('close-drawer');
+        this.$saveSettings = document.getElementById('save-settings');
+        this.$clearSettings = document.getElementById('clear-settings');
+        this.$cookieInput = document.getElementById('cookie-input');
+        this.$proxyInput = document.getElementById('proxy-input');
+        this.$backendInput = document.getElementById('backend-input');
 
         this._bindEvents();
         this.renderHistory();
+        this._initEngineSettings();
     }
 
     // ── Event emitter ────────────────────────────────────────
@@ -100,6 +110,31 @@ export class UIController {
         this.$pitchUp?.addEventListener('click', () => {
             this._currentPitch++;
             this._updatePitch();
+        });
+
+        // Engine Drawer UI
+        this.$engineBtn?.addEventListener('click', () => this._toggleEngineDrawer(true));
+        this.$closeDrawer?.addEventListener('click', () => this._toggleEngineDrawer(false));
+        this.$drawerOverlay?.addEventListener('click', () => this._toggleEngineDrawer(false));
+
+        this.$saveSettings?.addEventListener('click', () => {
+            const config = {
+                cookies: this.$cookieInput.value.trim(),
+                proxy: this.$proxyInput.value.trim(),
+                backend: this.$backendInput.value.trim()
+            };
+            EngineConfig.save(config);
+            this._toggleEngineDrawer(false);
+            this._updateEngineStatus();
+            alert('🚀 引擎已發動！設置已保存。');
+            window.location.reload(); // Reload to refresh failover list
+        });
+
+        this.$clearSettings?.addEventListener('click', () => {
+            if (confirm('確定要拔出鑰匙並清除所有設定嗎？')) {
+                EngineConfig.clear();
+                window.location.reload();
+            }
         });
 
         this.$dlMenuBtn?.addEventListener('click', (e) => {
@@ -443,5 +478,33 @@ export class UIController {
     reset() {
         ktv.destroy(); // 重置播放器
         location.reload(); // 最徹底的重置方式
+    }
+    // ── Engine Ignition Logic ──────────────────────────────
+    _initEngineSettings() {
+        const config = EngineConfig.load();
+        if (this.$cookieInput) this.$cookieInput.value = config.cookies || '';
+        if (this.$proxyInput) this.$proxyInput.value = config.proxy || '';
+        if (this.$backendInput) this.$backendInput.value = config.backend || '';
+        this._updateEngineStatus();
+    }
+
+    _toggleEngineDrawer(open) {
+        if (open) {
+            this.$engineDrawer?.classList.add('open');
+            this.$drawerOverlay?.classList.add('visible');
+        } else {
+            this.$engineDrawer?.classList.remove('open');
+            this.$drawerOverlay?.classList.remove('visible');
+        }
+    }
+
+    _updateEngineStatus() {
+        const config = EngineConfig.load();
+        const hasKey = config.cookies || config.backend;
+        if (this.$engineBtn) {
+            this.$engineBtn.classList.toggle('active', !!hasKey);
+            const label = this.$engineBtn.querySelector('.engine-label');
+            if (label) label.textContent = hasKey ? '引擎運轉中' : '發動引擎';
+        }
     }
 }

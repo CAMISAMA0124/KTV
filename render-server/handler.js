@@ -43,9 +43,9 @@ const FALLBACK_CLIENTS = [
 ];
 
 // Helper to prepare cookies file (converts JSON to Netscape format if needed)
-async function getCookiesFile() {
-    if (!YOUTUBE_COOKIES) return null;
-    let content = YOUTUBE_COOKIES.trim();
+async function getCookiesFile(overrideData) {
+    let content = (overrideData || YOUTUBE_COOKIES || '').trim();
+    if (!content) return null;
 
     // Check if it's JSON
     if (content.startsWith('[') && content.endsWith(']')) {
@@ -77,9 +77,9 @@ async function getCookiesFile() {
     return cookiePath;
 }
 
-export async function getVideoInfo(url) {
+export async function getVideoInfo(url, overrides = {}) {
     let lastError = null;
-    const cookiePath = await getCookiesFile();
+    const cookiePath = await getCookiesFile(overrides.cookies);
     const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
 
     // Explicit node path for Render's Docker environment
@@ -97,7 +97,8 @@ export async function getVideoInfo(url) {
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 ...cookieFlags
             ];
-            if (YOUTUBE_PROXY) args.push('--proxy', YOUTUBE_PROXY);
+            const activeProxy = overrides.proxy || YOUTUBE_PROXY;
+            if (activeProxy) args.push('--proxy', activeProxy);
             if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
 
             const result = await ytDlp.execPromise(args);
@@ -152,9 +153,9 @@ export async function searchVideos(query, limit = 5) {
     }));
 }
 
-export async function extractAudio(url, res) {
-    console.log('[Extract]: Streaming start for', url);
-    const info = await getVideoInfo(url);
+export async function extractAudio(url, res, overrides = {}) {
+    console.log('[Extract]: Streaming start for', url, overrides.cookies ? '(User Cookies)' : '');
+    const info = await getVideoInfo(url, overrides);
     const safeTitle = info.title.replace(/[^\w\s-]/g, '').trim().substring(0, 50) || 'audio';
 
     res.setHeader('Content-Type', 'audio/mp4');
@@ -162,7 +163,7 @@ export async function extractAudio(url, res) {
     res.setHeader('X-Video-Title', encodeURIComponent(info.title || 'audio'));
     res.setHeader('X-Video-Duration', info.duration || 0);
 
-    const cookiePath = await getCookiesFile();
+    const cookiePath = await getCookiesFile(overrides.cookies);
     const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
     const nodePath = process.platform === 'win32' ? 'node' : '/usr/local/bin/node';
 
@@ -176,7 +177,8 @@ export async function extractAudio(url, res) {
         '-o', '-', // Output to STDOUT
         ...cookieFlags
     ];
-    if (YOUTUBE_PROXY) args.push('--proxy', YOUTUBE_PROXY);
+    const activeProxy = overrides.proxy || YOUTUBE_PROXY;
+    if (activeProxy) args.push('--proxy', activeProxy);
 
     console.log('[Extract] Spawning yt-dlp for streaming...');
     const ytStream = ytDlp.execStream(args);

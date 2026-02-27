@@ -36,8 +36,45 @@
                 <span class="logo-icon">🎵</span>
                 <span class="logo-text">一鍵歡唱 <span class="accent">KTV</span></span>
             </div>
-            <div id="env-badges" class="env-badges"></div>
+            <div class="header-actions">
+                <div id="env-badges" class="env-badges"></div>
+                <button id="engine-btn" class="engine-btn" title="引擎設定">
+                    <span class="engine-indicator">●</span>
+                    <span class="engine-label">發動引擎</span>
+                </button>
+            </div>
         </header>
+
+        <!-- Engine Settings Overlay (The Drawer) -->
+        <div id="engine-drawer" class="engine-drawer">
+            <div class="drawer-handle"></div>
+            <div class="drawer-content">
+                <div class="drawer-header">
+                    <h2>⚙️ 引擎設定 (Ignition)</h2>
+                    <button id="close-drawer" class="close-drawer">✕</button>
+                </div>
+                <p class="drawer-desc">像插鑰匙一樣，放入通行證可穩定下載。</p>
+
+                <div class="setting-group">
+                    <label>🔑 您的 YouTube Cookie (JSON)</label>
+                    <textarea id="cookie-input" placeholder='貼上從擴充功能匯出的 JSON Cookie...'></textarea>
+                </div>
+
+                <div class="setting-group">
+                    <label>🌐 代理引擎 (Proxy URL)</label>
+                    <input type="text" id="proxy-input" placeholder="http://user:pass@host:port (選填)" />
+                </div>
+
+                <div class="setting-group">
+                    <label>🚀 Colab/HF 備援地址</label>
+                    <input type="text" id="backend-input" placeholder="https://....loca.lt" />
+                </div>
+
+                <button id="save-settings" class="btn btn-primary">發動引擎 (Save & Restart)</button>
+                <button id="clear-settings" class="btn btn-text">拔出鑰匙 (Clear All)</button>
+            </div>
+        </div>
+        <div id="drawer-overlay" class="drawer-overlay"></div>
 
         <main class="container">
             <!-- Hero Section -->
