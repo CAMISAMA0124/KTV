@@ -42,15 +42,14 @@ export class UIController {
         // DOM refs — shared
         this.$statusText = document.getElementById('status-text');
         this.$progressWrap = document.getElementById('progress-wrap');
-        this.$progressFill = document.getElementById('progress-fill');
+        this.$progressFill = document.getElementById('progress-bar') || document.getElementById('progress-fill');
         this.$progressPct = document.getElementById('progress-pct');
-        this.$progressTrack = this.$progressWrap?.querySelector('.progress-bar-track');
         this.$etaText = document.getElementById('eta-text');
         this.$envBadges = document.getElementById('env-badges');
         this.$envWarnings = document.getElementById('env-warnings');
         this.$modelStatus = document.getElementById('model-cache-status');
         this.$cancelBtn = document.getElementById('cancel-btn');
-        this.$waveform = document.getElementById('waveform');
+        this.$waveform = document.getElementById('vocal-wave') || document.getElementById('waveform');
 
         // DOM refs — result
         this.$resultPanel = document.getElementById('result-panel');
@@ -354,16 +353,16 @@ export class UIController {
         if (this.$searchStatusText) this.$searchStatusText.textContent = msg;
     }
 
-    setProgress(pct, etaSeconds = null) {
+    setProgress(pct, eta = null) {
+        if (!this.$progressFill) return;
         const c = Math.max(0, Math.min(100, pct));
         this.$progressFill.style.width = `${c}%`;
-        this.$progressPct.textContent = `${Math.round(c)}%`;
-        this.$progressTrack?.setAttribute('aria-valuenow', Math.round(c));
-        if (etaSeconds !== null && etaSeconds > 0) {
-            const m = Math.floor(etaSeconds / 60), s = Math.floor(etaSeconds % 60);
-            this.$etaText.textContent = m > 0 ? `預計 ${m}分${s}秒` : `預計 ${s}秒`;
-        } else {
-            this.$etaText.textContent = '';
+        if (this.$progressPct) {
+            this.$progressPct.textContent = `${Math.round(c)}%`;
+        }
+        if (eta && this.$etaText) {
+            this.$etaText.textContent = `預估剩餘: ${eta}`;
+            this.$etaText.style.display = 'block';
         }
     }
 
