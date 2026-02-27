@@ -60,14 +60,31 @@ const BYPASS_FLAGS = [
     '--no-cache-dir'
 ];
 
+const FALLBACK_CLIENTS = [
+    'android_music,ios',
+    'ios,web',
+    'web,tvhtml5',
+    'android'
+];
+
 export async function getVideoInfo(url) {
-    try {
-        const result = await ytDlp.execPromise([url, '--dump-json', ...BYPASS_FLAGS]);
-        return JSON.parse(result);
-    } catch (e) {
-        console.error('[yt-dlp] getVideoInfo Error:', e.message);
-        throw e;
+    let lastError = null;
+    for (const client of FALLBACK_CLIENTS) {
+        try {
+            console.log(`[yt-dlp] Trying getVideoInfo with client: ${client}`);
+            const result = await ytDlp.execPromise([
+                url, '--dump-json',
+                '--no-cache-dir',
+                '--extractor-args', `youtube:player-client=${client}`,
+                '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+            ]);
+            return JSON.parse(result);
+        } catch (e) {
+            console.warn(`[yt-dlp] Client ${client} failed:`, e.message);
+            lastError = e;
+        }
     }
+    throw lastError;
 }
 
 function ytApiGet(url) {
@@ -116,35 +133,42 @@ export async function extractAudio(url, onProgress) {
     const safeTitle = info.title.replace(/[^\w\s-]/g, '').trim().substring(0, 50) || 'audio';
     const tmpPath = path.join(os.tmpdir(), `render_${Date.now()}.m4a`);
 
-    await new Promise((resolve, reject) => {
-        const process = ytDlp.exec([
-            url,
-            '-f', 'ba/b',
-            '--no-playlist',
-            '--no-part',
-            '--no-cache-dir',
-            '--force-overwrites',
-            '--extractor-args', 'youtube:player-client=android_music,ios',
-            '--output', tmpPath,
-        ]);
+    let success = false;
+    for (const client of FALLBACK_CLIENTS) {
+        try {
+            console.log(`[Extract] Trying client: ${client}`);
+            await new Promise((resolve, reject) => {
+                const process = ytDlp.exec([
+                    url,
+                    '-f', 'ba/b',
+                    '--no-playlist', '--no-part', '--no-cache-dir', '--force-overwrites',
+                    '--extractor-args', `youtube:player-client=${client}`,
+                    '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+                    '--output', tmpPath,
+                ]);
 
-        process.on('ytDlpEvent', (eventType, eventData) => {
-            if (eventType === 'download' && onProgress) {
-                const match = eventData.match(/(\d+(?:\.\d+)?)%/);
-                if (match) onProgress(parseFloat(match[1]));
-            }
-        });
+                process.on('ytDlpEvent', (eventType, eventData) => {
+                    if (eventType === 'download' && onProgress) {
+                        const match = eventData.match(/(\d+(?:\.\d+)?)%/);
+                        if (match) onProgress(parseFloat(match[1]));
+                    }
+                });
 
-        process.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`yt-dlp exited with code ${code}`));
-        });
+                process.on('close', (code) => {
+                    if (code === 0) resolve();
+                    else reject(new Error(`yt-dlp exited with code ${code}`));
+                });
 
-        process.on('error', (err) => {
-            console.error('[yt-dlp] Process Error:', err);
-            reject(err);
-        });
-    });
+                process.on('error', reject);
+            });
+            success = true;
+            break;
+        } catch (e) {
+            console.warn(`[Extract] Client ${client} failed:`, e.message);
+        }
+    }
+
+    if (!success) throw new Error('所有擷取方式皆已失敗，YouTube 可能封鎖了此 IP');
 
     try {
         const buffer = await fs.readFile(tmpPath);
