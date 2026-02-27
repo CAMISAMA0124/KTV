@@ -11,6 +11,7 @@ import https from 'https';
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBBZzotQ2jYfdyqrZNhKcO-1AoGS5vI76k';
 const YOUTUBE_COOKIES = process.env.YOUTUBE_COOKIES || '';
+const YOUTUBE_PROXY = process.env.YOUTUBE_PROXY || '';
 
 const LOCAL_YTDLP = process.platform === 'win32'
     ? path.join(os.tmpdir(), 'yt-dlp.exe')
@@ -96,6 +97,7 @@ export async function getVideoInfo(url) {
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 ...cookieFlags
             ];
+            if (YOUTUBE_PROXY) args.push('--proxy', YOUTUBE_PROXY);
             if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
 
             const result = await ytDlp.execPromise(args);
@@ -174,6 +176,7 @@ export async function extractAudio(url, onProgress) {
                     '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     ...cookieFlags
                 ];
+                if (YOUTUBE_PROXY) args.push('--proxy', YOUTUBE_PROXY);
                 if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
 
                 const process = ytDlp.exec(args);
