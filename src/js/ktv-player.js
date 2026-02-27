@@ -24,6 +24,7 @@ class KTVPlayer {
         this.isGuideMode = true; // 導唱開啟
         this.currentPitch = 0;   // 升降 Key
         this.syncInterval = null;
+        this.toneInitialized = false;
 
         this.initAudioChain();
     }
@@ -43,6 +44,30 @@ class KTVPlayer {
 
         this.vocalsBuffer = vocals;
         this.accompanimentBuffer = accompaniment;
+
+        // 初始化 Tone.js 音高控制器
+        if (!this.toneInitialized && window.Tone) {
+            Tone.setContext(this.ctx);
+            // 建立 PitchShift 節點 (不改變 BPM 的升降 key)
+            this.vocalPitchShift = new Tone.PitchShift({
+                pitch: this.currentPitch,
+                windowSize: 0.1,
+                delayTime: 0,
+                feedback: 0
+            });
+            this.accompPitchShift = new Tone.PitchShift({
+                pitch: this.currentPitch,
+                windowSize: 0.1,
+                delayTime: 0,
+                feedback: 0
+            });
+
+            // 將 PitchShift 的輸出接回我們原本的音量控制器
+            this.vocalPitchShift.connect(this.vocalsGain);
+            this.accompPitchShift.connect(this.accompanimentGain);
+
+            this.toneInitialized = true;
+        }
 
         // 初始化 YouTube Player
         if (!this.ytPlayer) {
@@ -200,13 +225,19 @@ class KTVPlayer {
         this.accompanimentNode.buffer = this.accompanimentBuffer;
         this.vocalsNode.buffer = this.vocalsBuffer;
 
-        // 設定升降 Key (Detune: 100 cents = 1 semitone)
-        const detuneValue = this.currentPitch * 100;
-        this.accompanimentNode.detune.value = detuneValue;
-        this.vocalsNode.detune.value = detuneValue;
+        if (this.toneInitialized) {
+            // 如果成功載入 Tone.js，則將音軌導流進去 (保留原始速度)
+            Tone.connect(this.accompanimentNode, this.accompPitchShift);
+            Tone.connect(this.vocalsNode, this.vocalPitchShift);
+        } else {
+            // 退回原始設定 (會改變速度)
+            const detuneValue = this.currentPitch * 100;
+            this.accompanimentNode.detune.value = detuneValue;
+            this.vocalsNode.detune.value = detuneValue;
 
-        this.accompanimentNode.connect(this.accompanimentGain);
-        this.vocalsNode.connect(this.vocalsGain);
+            this.accompanimentNode.connect(this.accompanimentGain);
+            this.vocalsNode.connect(this.vocalsGain);
+        }
 
         this.startTimeOffset = this.ctx.currentTime - time;
 
@@ -241,7 +272,13 @@ class KTVPlayer {
      */
     setPitch(key) {
         this.currentPitch = Math.max(-5, Math.min(5, key));
-        if (this.vocalsNode && this.accompanimentNode) {
+
+        if (this.toneInitialized) {
+            // 設定 TonePitchShift (不影響速度)
+            this.vocalPitchShift.pitch = this.currentPitch;
+            this.accompPitchShift.pitch = this.currentPitch;
+        } else if (this.vocalsNode && this.accompanimentNode) {
+            // 使用原本的 Detune 功能作為退路方案 (會影響速度)
             const detuneValue = this.currentPitch * 100;
             this.vocalsNode.detune.setTargetAtTime(detuneValue, this.ctx.currentTime, 0.1);
             this.accompanimentNode.detune.setTargetAtTime(detuneValue, this.ctx.currentTime, 0.1);
