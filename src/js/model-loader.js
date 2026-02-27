@@ -42,10 +42,6 @@ let cachedModelKey = null;
  * @param {string} backend - 'webgpu' | 'webnn' | 'wasm'
  */
 function configureORT(backend) {
-    // 指定 WASM 路徑（從 CDN 取得，避免打包問題）
-    // 確保 WASM 路徑與安裝版本 (1.24.2) 一致，避免版本不匹配錯誤
-    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.2/dist/';
-
     if (backend === EnvStatus.WEBGPU) {
         ort.env.webgpu.powerPreference = 'high-performance';
     }
