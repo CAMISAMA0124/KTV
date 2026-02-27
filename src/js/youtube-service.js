@@ -124,12 +124,12 @@ export async function checkAPIHealth() {
     try {
         for (const base of API_ENDPOINTS) {
             try {
-                // Remove trailing slash if exists to avoid double //
-                const cleanBase = base.replace(/\/$/, '');
-                const res = await fetch(`${cleanBase}/health`, { signal: AbortSignal.timeout(3000) });
+                // '' = Vercel same-origin /api route
+                const url = base === '' ? '/api/health' : `${base.replace(/\/$/, '')}/health`;
+                const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
                 const data = await res.json();
                 if (data.ok || data.status === 'ok') {
-                    return { ok: true, ready: !!data.ready };
+                    return { ok: true, ready: true }; // Vercel and updated Render are always ready
                 }
             } catch { continue; }
         }
