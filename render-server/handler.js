@@ -50,9 +50,17 @@ export async function initYtDlp() {
     return ytDlp;
 }
 
+const BYPASS_FLAGS = [
+    '--extractor-args', 'youtube:player-client=ios,web',
+    '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    '--referer', 'https://www.youtube.com/',
+    '--no-cache-dir'
+];
+
 export async function getVideoInfo(url) {
     try {
-        return await ytDlp.getVideoInfo(url);
+        const result = await ytDlp.execPromise([url, '--dump-json', ...BYPASS_FLAGS]);
+        return JSON.parse(result);
     } catch (e) {
         console.error('[yt-dlp] getVideoInfo Error:', e.message);
         throw e;
@@ -61,12 +69,12 @@ export async function getVideoInfo(url) {
 
 export async function searchVideos(query, limit = 5) {
     try {
-        // Using -J for faster dump-json
         const result = await ytDlp.execPromise([
             `ytsearch${limit}:${query}`,
             '--dump-json',
             '--no-playlist',
-            '--flat-playlist'
+            '--flat-playlist',
+            ...BYPASS_FLAGS
         ]);
         const lines = result.trim().split('\n').filter(l => l.trim() !== '');
         return lines.map(line => {
@@ -97,11 +105,14 @@ export async function extractAudio(url, onProgress) {
     await new Promise((resolve, reject) => {
         const process = ytDlp.exec([
             url,
-            '-f', 'ba',
+            '-f', 'ba/b',
             '--no-playlist',
             '--no-part',
             '--no-cache-dir',
             '--force-overwrites',
+            '--extractor-args', 'youtube:player-client=ios,web',
+            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            '--referer', 'https://www.youtube.com/',
             '--output', tmpPath,
         ]);
 
