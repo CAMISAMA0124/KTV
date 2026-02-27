@@ -70,36 +70,44 @@ export async function getVideoInfo(url) {
     }
 }
 
-export async function searchVideos(query, limit = 5) {
+function ytApiGet(url) {
     return new Promise((resolve, reject) => {
-        const q = encodeURIComponent(query);
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&maxResults=${limit}&type=video&relevanceLanguage=zh&regionCode=TW&key=${YOUTUBE_API_KEY}`;
-
         https.get(url, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-                try {
-                    const json = JSON.parse(data);
-                    if (json.error) {
-                        console.error('[YouTube API] Error:', json.error.message);
-                        return reject(new Error(json.error.message));
-                    }
-                    const results = (json.items || []).map(item => ({
-                        id: item.id.videoId,
-                        url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-                        title: item.snippet.title,
-                        uploader: item.snippet.channelTitle,
-                        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
-                        duration: 0, // Duration requires separate API call
-                    }));
-                    resolve(results);
-                } catch (e) {
-                    reject(e);
-                }
-            });
+            res.on('end', () => { try { resolve(JSON.parse(data)); } catch (e) { reject(e); } });
         }).on('error', reject);
     });
+}
+
+function isoToSecs(iso) {
+    if (!iso) return 0;
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return 0;
+    return (parseInt(m[1] || 0) * 3600) + (parseInt(m[2] || 0) * 60) + parseInt(m[3] || 0);
+}
+
+export async function searchVideos(query, limit = 5) {
+    const q = encodeURIComponent(query);
+    const searchData = await ytApiGet(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&maxResults=${limit}&type=video&relevanceLanguage=zh&regionCode=TW&key=${YOUTUBE_API_KEY}`);
+    if (searchData.error) throw new Error(searchData.error.message);
+    const items = searchData.items || [];
+    if (items.length === 0) return [];
+
+    // Fetch durations
+    const ids = items.map(i => i.id.videoId).join(',');
+    const detailData = await ytApiGet(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&key=${YOUTUBE_API_KEY}`);
+    const durMap = {};
+    (detailData.items || []).forEach(v => { durMap[v.id] = isoToSecs(v.contentDetails?.duration); });
+
+    return items.map(item => ({
+        id: item.id.videoId,
+        url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+        title: item.snippet.title,
+        uploader: item.snippet.channelTitle,
+        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+        duration: durMap[item.id.videoId] || 0,
+    }));
 }
 
 export async function extractAudio(url, onProgress) {
@@ -116,9 +124,7 @@ export async function extractAudio(url, onProgress) {
             '--no-part',
             '--no-cache-dir',
             '--force-overwrites',
-            '--extractor-args', 'youtube:player-client=ios,web',
-            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-            '--referer', 'https://www.youtube.com/',
+            '--extractor-args', 'youtube:player-client=android_music,ios',
             '--output', tmpPath,
         ]);
 
