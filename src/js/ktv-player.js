@@ -4,6 +4,8 @@
  * 支援：導唱切換、升降 Key (+-5)、音訊同步校正
  */
 
+import { Jungle } from './jungle.js';
+
 class KTVPlayer {
     constructor() {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -45,29 +47,11 @@ class KTVPlayer {
         this.vocalsBuffer = vocals;
         this.accompanimentBuffer = accompaniment;
 
-        // 初始化 Tone.js 音高控制器
-        if (!this.toneInitialized && window.Tone) {
-            Tone.setContext(this.ctx);
-            // 建立 PitchShift 節點 (不改變 BPM 的升降 key)
-            this.vocalPitchShift = new Tone.PitchShift({
-                pitch: this.currentPitch,
-                windowSize: 0.1,
-                delayTime: 0,
-                feedback: 0
-            });
-            this.accompPitchShift = new Tone.PitchShift({
-                pitch: this.currentPitch,
-                windowSize: 0.1,
-                delayTime: 0,
-                feedback: 0
-            });
+        this.vocalPitchShift = new Jungle(this.ctx);
+        this.accompPitchShift = new Jungle(this.ctx);
 
-            // 將 PitchShift 的輸出接回我們原本的音量控制器
-            this.vocalPitchShift.connect(this.vocalsGain);
-            this.accompPitchShift.connect(this.accompanimentGain);
-
-            this.toneInitialized = true;
-        }
+        this.vocalPitchShift.output.connect(this.vocalsGain);
+        this.accompPitchShift.output.connect(this.accompanimentGain);
 
         // 初始化 YouTube Player
         if (!this.ytPlayer) {
@@ -225,19 +209,9 @@ class KTVPlayer {
         this.accompanimentNode.buffer = this.accompanimentBuffer;
         this.vocalsNode.buffer = this.vocalsBuffer;
 
-        if (this.toneInitialized) {
-            // 如果成功載入 Tone.js，則將音軌導流進去 (保留原始速度)
-            Tone.connect(this.accompanimentNode, this.accompPitchShift);
-            Tone.connect(this.vocalsNode, this.vocalPitchShift);
-        } else {
-            // 退回原始設定 (會改變速度)
-            const detuneValue = this.currentPitch * 100;
-            this.accompanimentNode.detune.value = detuneValue;
-            this.vocalsNode.detune.value = detuneValue;
-
-            this.accompanimentNode.connect(this.accompanimentGain);
-            this.vocalsNode.connect(this.vocalsGain);
-        }
+        // 將音軌導流進去 (保留原始速度)
+        this.accompanimentNode.connect(this.accompPitchShift.input);
+        this.vocalsNode.connect(this.vocalPitchShift.input);
 
         this.startTimeOffset = this.ctx.currentTime - time;
 
@@ -272,16 +246,11 @@ class KTVPlayer {
      */
     setPitch(key) {
         this.currentPitch = Math.max(-5, Math.min(5, key));
-
-        if (this.toneInitialized) {
-            // 設定 TonePitchShift (不影響速度)
-            this.vocalPitchShift.pitch = this.currentPitch;
-            this.accompPitchShift.pitch = this.currentPitch;
-        } else if (this.vocalsNode && this.accompanimentNode) {
-            // 使用原本的 Detune 功能作為退路方案 (會影響速度)
-            const detuneValue = this.currentPitch * 100;
-            this.vocalsNode.detune.setTargetAtTime(detuneValue, this.ctx.currentTime, 0.1);
-            this.accompanimentNode.detune.setTargetAtTime(detuneValue, this.ctx.currentTime, 0.1);
+        // Tone is 1 octave per 1. Jungle is 1 octave per 1.0 multiplier
+        const mult = this.currentPitch / 12;
+        if (this.vocalPitchShift && this.accompPitchShift) {
+            this.vocalPitchShift.setPitchOffset(mult);
+            this.accompPitchShift.setPitchOffset(mult);
         }
     }
 

@@ -1,19 +1,50 @@
-// jungle.js
-// A Web Audio API Pitch Shifter. Based on Chris Wilson's Jungle Pitch Shifter algorithm.
+// Copyright 2012, Google Inc.
+// All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+// 
+//     * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//     * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//     * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 function createFadeBuffer(context, activeTime, fadeTime) {
     var length1 = activeTime * context.sampleRate;
-    var length2 = (activeTime - 2 * fadeTime) * context.sampleRate;
+    var length2 = (activeTime - 2*fadeTime) * context.sampleRate;
     var length = length1 + length2;
     var buffer = context.createBuffer(1, length, context.sampleRate);
     var p = buffer.getChannelData(0);
-
+    
+    console.log("createFadeBuffer() length = " + length);
+    
     var fadeLength = fadeTime * context.sampleRate;
+
     var fadeIndex1 = fadeLength;
     var fadeIndex2 = length1 - fadeLength;
-
+    
+    // 1st part of cycle
     for (var i = 0; i < length1; ++i) {
         var value;
+        
         if (i < fadeIndex1) {
             value = Math.sqrt(i / fadeLength);
         } else if (i >= fadeIndex2) {
@@ -21,33 +52,39 @@ function createFadeBuffer(context, activeTime, fadeTime) {
         } else {
             value = 1;
         }
+        
         p[i] = value;
     }
 
+    // 2nd part
     for (var i = length1; i < length; ++i) {
         p[i] = 0;
     }
-
+    
+    
     return buffer;
 }
 
 function createDelayTimeBuffer(context, activeTime, fadeTime, shiftUp) {
     var length1 = activeTime * context.sampleRate;
-    var length2 = (activeTime - 2 * fadeTime) * context.sampleRate;
+    var length2 = (activeTime - 2*fadeTime) * context.sampleRate;
     var length = length1 + length2;
     var buffer = context.createBuffer(1, length, context.sampleRate);
     var p = buffer.getChannelData(0);
 
+    console.log("createDelayTimeBuffer() length = " + length);
+    
+    // 1st part of cycle
     for (var i = 0; i < length1; ++i) {
-        if (shiftUp) {
-            // This line does shift-up transpose
-            p[i] = (length1 - i) / length;
-        } else {
-            // This line does shift-down transpose
-            p[i] = i / length1;
-        }
+        if (shiftUp)
+          // This line does shift-up transpose
+          p[i] = (length1-i)/length;
+        else
+          // This line does shift-down transpose
+          p[i] = i / length1;
     }
 
+    // 2nd part
     for (var i = length1; i < length; ++i) {
         p[i] = 0;
     }
@@ -55,99 +92,133 @@ function createDelayTimeBuffer(context, activeTime, fadeTime, shiftUp) {
     return buffer;
 }
 
-export class Jungle {
-    constructor(context) {
-        this.context = context;
-        this.input = context.createGain();
-        this.output = context.createGain();
+var delayTime = 0.100;
+var fadeTime = 0.050;
+var bufferTime = 0.100;
 
-        // Constants
-        var delayTime = 0.100;
-        var fadeTime = 0.050;
-        var bufferTime = 0.100;
+function Jungle(context) {
+    this.context = context;
+    // Create nodes for the input and output of this "module".
+    var input = context.createGain();
+    var output = context.createGain();
+    this.input = input;
+    this.output = output;
+    
+    // Delay modulation.
+    var mod1 = context.createBufferSource();
+    var mod2 = context.createBufferSource();
+    var mod3 = context.createBufferSource();
+    var mod4 = context.createBufferSource();
+    this.shiftDownBuffer = createDelayTimeBuffer(context, bufferTime, fadeTime, false);
+    this.shiftUpBuffer = createDelayTimeBuffer(context, bufferTime, fadeTime, true);
+    mod1.buffer = this.shiftDownBuffer;
+    mod2.buffer = this.shiftDownBuffer;
+    mod3.buffer = this.shiftUpBuffer;
+    mod4.buffer = this.shiftUpBuffer;
+    mod1.loop = true;
+    mod2.loop = true;
+    mod3.loop = true;
+    mod4.loop = true;
 
-        // Create Nodes
-        this.delay1 = context.createDelay(delayTime * 2);
-        this.delay2 = context.createDelay(delayTime * 2);
-        this.fade1 = context.createGain();
-        this.fade2 = context.createGain();
-        this.mod1 = context.createBufferSource();
-        this.mod2 = context.createBufferSource();
-        this.mod3 = context.createBufferSource(); // fade1 modulation
-        this.mod4 = context.createBufferSource(); // fade2 modulation
+    // for switching between oct-up and oct-down
+    var mod1Gain = context.createGain();
+    var mod2Gain = context.createGain();
+    var mod3Gain = context.createGain();
+    mod3Gain.gain.value = 0;
+    var mod4Gain = context.createGain();
+    mod4Gain.gain.value = 0;
 
-        this.shiftDownBuffer = createDelayTimeBuffer(context, bufferTime, fadeTime, false);
-        this.shiftUpBuffer = createDelayTimeBuffer(context, bufferTime, fadeTime, true);
-        this.fadeBuffer = createFadeBuffer(context, bufferTime, fadeTime);
+    mod1.connect(mod1Gain);
+    mod2.connect(mod2Gain);
+    mod3.connect(mod3Gain);
+    mod4.connect(mod4Gain);
 
-        this.mod1.buffer = this.shiftDownBuffer;
-        this.mod2.buffer = this.shiftDownBuffer;
-        this.mod3.buffer = this.fadeBuffer;
-        this.mod4.buffer = this.fadeBuffer;
+    // Delay amount for changing pitch.
+    var modGain1 = context.createGain();
+    var modGain2 = context.createGain();
 
-        this.mod1.loop = true;
-        this.mod2.loop = true;
-        this.mod3.loop = true;
-        this.mod4.loop = true;
+    var delay1 = context.createDelay();
+    var delay2 = context.createDelay();
+    mod1Gain.connect(modGain1);
+    mod2Gain.connect(modGain2);
+    mod3Gain.connect(modGain1);
+    mod4Gain.connect(modGain2);
+    modGain1.connect(delay1.delayTime);
+    modGain2.connect(delay2.delayTime);
 
-        this.mix1 = context.createGain();
-        this.mix2 = context.createGain();
-        this.mix1.gain.value = 0;
-        this.mix2.gain.value = 0;
+    // Crossfading.
+    var fade1 = context.createBufferSource();
+    var fade2 = context.createBufferSource();
+    var fadeBuffer = createFadeBuffer(context, bufferTime, fadeTime);
+    fade1.buffer = fadeBuffer
+    fade2.buffer = fadeBuffer;
+    fade1.loop = true;
+    fade2.loop = true;
 
-        // Routing
-        this.input.connect(this.delay1);
-        this.input.connect(this.delay2);
-        this.delay1.connect(this.fade1);
-        this.delay2.connect(this.fade2);
-        this.fade1.connect(this.output);
-        this.fade2.connect(this.output);
+    var mix1 = context.createGain();
+    var mix2 = context.createGain();
+    mix1.gain.value = 0;
+    mix2.gain.value = 0;
 
-        // Routing modulators
-        this.mod1.connect(this.delay1.delayTime);
-        this.mod2.connect(this.delay2.delayTime);
-        this.mod3.connect(this.fade1.gain);
-        this.mod4.connect(this.fade2.gain);
+    fade1.connect(mix1.gain);    
+    fade2.connect(mix2.gain);
+        
+    // Connect processing graph.
+    input.connect(delay1);
+    input.connect(delay2);    
+    delay1.connect(mix1);
+    delay2.connect(mix2);
+    mix1.connect(output);
+    mix2.connect(output);
+    
+    // Start
+    var t = context.currentTime + 0.050;
+    var t2 = t + bufferTime - fadeTime;
+    mod1.start(t);
+    mod2.start(t2);
+    mod3.start(t);
+    mod4.start(t2);
+    fade1.start(t);
+    fade2.start(t2);
 
-        // Initialize playback
-        var t = context.currentTime + 0.050; // little buffer
-        this.mod1.start(t);
-        this.mod2.start(t + bufferTime - fadeTime);
-        this.mod3.start(t);
-        this.mod4.start(t + bufferTime - fadeTime);
-
-        // By default, no shift
-        this.setPitchOffset(0);
-    }
-
-    setPitchOffset(mult) {
-        let isPitchUp = mult > 0;
-        let p = isPitchUp ? this.shiftUpBuffer : this.shiftDownBuffer;
-
-        // Since we created both buffers, just assign the correct one
-        // and adjust the scale (multiplier)
-        let absMult = Math.abs(mult);
-
-        // Small logic to prevent clicking when not shifting
-        if (absMult === 0) {
-            this.mod1.buffer = p;
-            this.mod2.buffer = p;
-            this.mix1.gain.setTargetAtTime(0, this.context.currentTime, 0.01);
-            this.mix2.gain.setTargetAtTime(0, this.context.currentTime, 0.01);
-        } else {
-            this.mod1.buffer = p;
-            this.mod2.buffer = p;
-
-            // Re-connect the fade gains 
-            this.mix1.gain.setTargetAtTime(1, this.context.currentTime, 0.01);
-            this.mix2.gain.setTargetAtTime(1, this.context.currentTime, 0.01);
-
-            // Scale the delay time amplitude:
-            // mult is between -1 (one octave down) to +1 (one octave up)
-            // But wait, the gain on mod1/2 goes directly to delayTime.
-            // A multiplier of 0.5 means half octave down/up.
-            window.lastMult = mult;
-        }
-
-    }
+    this.mod1 = mod1;
+    this.mod2 = mod2;
+    this.mod1Gain = mod1Gain;
+    this.mod2Gain = mod2Gain;
+    this.mod3Gain = mod3Gain;
+    this.mod4Gain = mod4Gain;
+    this.modGain1 = modGain1;
+    this.modGain2 = modGain2;
+    this.fade1 = fade1;
+    this.fade2 = fade2;
+    this.mix1 = mix1;
+    this.mix2 = mix2;
+    this.delay1 = delay1;
+    this.delay2 = delay2;
+    
+    this.setDelay(delayTime);
 }
+
+Jungle.prototype.setDelay = function(delayTime) {
+    this.modGain1.gain.setTargetAtTime(0.5*delayTime, 0, 0.010);
+    this.modGain2.gain.setTargetAtTime(0.5*delayTime, 0, 0.010);
+}
+
+var previousPitch = -1;
+
+Jungle.prototype.setPitchOffset = function(mult) {
+        if (mult>0) { // pitch up
+            this.mod1Gain.gain.value = 0;
+            this.mod2Gain.gain.value = 0;
+            this.mod3Gain.gain.value = 1;
+            this.mod4Gain.gain.value = 1;
+        } else { // pitch down
+            this.mod1Gain.gain.value = 1;
+            this.mod2Gain.gain.value = 1;
+            this.mod3Gain.gain.value = 0;
+            this.mod4Gain.gain.value = 0;
+        }
+        this.setDelay(delayTime*Math.abs(mult));
+    previousPitch = mult;
+}
+export { Jungle };
