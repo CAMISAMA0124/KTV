@@ -9,12 +9,12 @@ import { initYtDlp, extractAudio, searchVideos, getVideoInfo } from './handler.j
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL; // e.g. https://your-app.onrender.com
+const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 
 app.use(cors({
     origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     exposedHeaders: ['Content-Disposition', 'X-Video-Title', 'X-Video-Duration', 'Content-Length']
 }));
 app.use(express.json());
@@ -51,7 +51,11 @@ app.post('/extract', async (req, res) => {
         res.setHeader('Content-Length', buffer.length);
         res.send(buffer);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        console.error('[Extract Error]:', e);
+        res.status(500).json({
+            error: '擷取失敗：' + (e.message || '未知錯誤'),
+            tip: '多試幾次，或檢查 YouTube 網址是否格式正確'
+        });
     }
 });
 
@@ -62,7 +66,6 @@ function startWarmup() {
         return;
     }
 
-    // Ping every 10 minutes to stay awake (Render sleeps after 15m)
     setInterval(async () => {
         try {
             console.log(`[Warmup] Pinging ${EXTERNAL_URL}/health ...`);

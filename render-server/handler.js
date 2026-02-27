@@ -41,6 +41,12 @@ export async function initYtDlp() {
             await fs.chmod(LOCAL_YTDLP, 0o755);
         }
     }
+    try {
+        // Daily update check (or on init)
+        console.log('[yt-dlp] Checking for updates...');
+        await ytDlp.execPromise(['-U']).catch(e => console.log('[yt-dlp] Update skipped:', e.message));
+    } catch { }
+
     return ytDlp;
 }
 
