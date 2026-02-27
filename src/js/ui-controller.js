@@ -114,7 +114,7 @@ export class UIController {
         });
 
         // URL / Search input
-        this.$urlInput.addEventListener('input', () => {
+        this.$urlInput?.addEventListener('input', () => {
             const val = this.$urlInput.value.trim();
             this.$urlClearBtn.style.display = val ? 'block' : 'none';
             if (!val) this._resetURLPanel();
@@ -135,13 +135,13 @@ export class UIController {
             }
         });
 
-        this.$urlClearBtn.addEventListener('click', () => {
+        this.$urlClearBtn?.addEventListener('click', () => {
             this.$urlInput.value = '';
             this.$urlClearBtn.style.display = 'none';
             this._resetURLPanel();
         });
 
-        this.$extractBtn.addEventListener('click', () => {
+        this.$extractBtn?.addEventListener('click', () => {
             if (this._selectedVideo && this.state === UIState.IDLE) {
                 this._showModeSelection();
             }
@@ -155,8 +155,8 @@ export class UIController {
             this.emit('mode-selected', 'ai');
         });
 
-        this.$resetBtn.addEventListener('click', () => this.reset());
-        this.$cancelBtn.addEventListener('click', () => this.emit('cancel'));
+        this.$resetBtn?.addEventListener('click', () => this.reset());
+        this.$cancelBtn?.addEventListener('click', () => this.emit('cancel'));
     }
 
     _updatePitch() {
