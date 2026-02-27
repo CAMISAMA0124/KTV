@@ -166,8 +166,10 @@ export async function extractAudio(url, onProgress) {
                 if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
 
                 const process = ytDlp.exec(args);
+                let lastOutput = '';
 
                 process.on('ytDlpEvent', (eventType, eventData) => {
+                    lastOutput = eventData;
                     if (eventType === 'download' && onProgress) {
                         const match = eventData.match(/(\d+(?:\.\d+)?)%/);
                         if (match) onProgress(parseFloat(match[1]));
@@ -176,7 +178,7 @@ export async function extractAudio(url, onProgress) {
 
                 process.on('close', (code) => {
                     if (code === 0) resolve();
-                    else reject(new Error(`yt-dlp exited with code ${code}`));
+                    else reject(new Error(`yt-dlp exited with code ${code}. Last: ${lastOutput}`));
                 });
 
                 process.on('error', reject);
