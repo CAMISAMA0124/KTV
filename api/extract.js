@@ -8,17 +8,34 @@ import { tmpdir } from 'os';
 
 const execFileAsync = promisify(execFile);
 
+const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+const TMP_YTDLP = join(tmpdir(), 'yt-dlp');
+
 // Find yt-dlp binary
-function getYtDlpPath() {
+async function getYtDlpPath() {
     const candidates = [
         '/usr/local/bin/yt-dlp',
         '/usr/bin/yt-dlp',
         'yt-dlp',
+        TMP_YTDLP,
     ];
     for (const p of candidates) {
         if (existsSync(p)) return p;
     }
-    return 'yt-dlp'; // fallback
+
+    try {
+        console.log('[Vercel Extract] Downloading yt-dlp to ' + TMP_YTDLP);
+        const res = await fetch(YTDLP_URL);
+        if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
+        const buffer = await res.arrayBuffer();
+        writeFileSync(TMP_YTDLP, Buffer.from(buffer));
+        await execFileAsync('chmod', ['+x', TMP_YTDLP]);
+        console.log('[Vercel Extract] Download complete');
+        return TMP_YTDLP;
+    } catch (e) {
+        console.warn('[Vercel Extract] Warning: could not download yt-dlp - ' + e.message);
+    }
+    return 'yt-dlp'; // absolute fallback
 }
 
 export default async function handler(req, res) {
@@ -37,7 +54,7 @@ export default async function handler(req, res) {
     if (!url) return res.status(400).json({ error: 'Missing url' });
 
     const tmpPath = join(tmpdir(), `vercel_${Date.now()}.m4a`);
-    const ytDlp = getYtDlpPath();
+    const ytDlp = await getYtDlpPath();
 
     try {
         // Get info first
