@@ -85,21 +85,30 @@ export async function getVideoInfo(url, overrides = {}) {
     // Explicit node path for Render's Docker environment
     const nodePath = process.platform === 'win32' ? 'node' : '/usr/local/bin/node';
 
-    // If we have cookies, start with default (web)
-    const clients = cookiePath ? [null] : FALLBACK_CLIENTS;
+    // For Zero-Config stability, prioritize TV clients which are less likely to be blocked
+    const clients = [
+        'tvhtml5', // Most resilient client
+        null,      // Default (web)
+    ];
+
+    if (cookiePath) clients.unshift(null); // If user provided cookies, use web client first
 
     for (const client of clients) {
         try {
-            console.log(`[yt-dlp] Trying getVideoInfo with client: ${client || 'default'} (Cookies: ${!!cookiePath})`);
+            console.log(`[yt-dlp] Trying getVideoInfo with client: ${client || 'web'} (Cookies: ${!!cookiePath})`);
             const args = [
                 url, '--dump-json', '--no-cache-dir',
                 '--js-runtimes', nodePath,
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 ...cookieFlags
             ];
+
             const activeProxy = overrides.proxy || YOUTUBE_PROXY;
             if (activeProxy) args.push('--proxy', activeProxy);
-            if (client) args.push('--extractor-args', `youtube:player-client=${client}`);
+
+            if (client) {
+                args.push('--extractor-args', `youtube:player-client=${client}`);
+            }
 
             const result = await ytDlp.execPromise(args);
             if (cookiePath) await fs.unlink(cookiePath).catch(() => { });

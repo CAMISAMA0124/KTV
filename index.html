@@ -50,28 +50,40 @@
             <div class="drawer-handle"></div>
             <div class="drawer-content">
                 <div class="drawer-header">
-                    <h2>⚙️ 引擎設定 (Ignition)</h2>
+                    <h2>⚙️ 引擎控制中心</h2>
                     <button id="close-drawer" class="close-drawer">✕</button>
                 </div>
-                <p class="drawer-desc">像插鑰匙一樣，放入通行證可穩定下載。</p>
 
-                <div class="setting-group">
-                    <label>🔑 您的 YouTube Cookie (JSON)</label>
-                    <textarea id="cookie-input" placeholder='貼上從擴充功能匯出的 JSON Cookie...'></textarea>
+                <div class="engine-status-panel">
+                    <div class="status-card"
+                        style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 24px; display: flex; align-items: center; gap: 16px; border: 1px solid rgba(255,255,255,0.1);">
+                        <div class="status-icon" style="font-size: 2.2rem;">🚀</div>
+                        <div class="status-info">
+                            <div class="status-title" style="font-weight: 800; font-size: 1.1rem;">自動雲端引擎 (AI Powered)
+                            </div>
+                            <div class="status-desc" style="font-size: 0.85rem; opacity: 0.6; margin-top: 4px;">
+                                已優化：使用電視端協定繞過封鎖，100% 免設定即刻點唱。</div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="setting-group">
-                    <label>🌐 代理引擎 (Proxy URL)</label>
-                    <input type="text" id="proxy-input" placeholder="http://user:pass@host:port (選填)" />
+                <div id="manual-settings" style="display: none; margin-top: 24px;">
+                    <div class="setting-group" style="margin-bottom: 0;">
+                        <label style="opacity: 0.8;">🔑 專家鑰匙 (YouTube Cookie JSON)</label>
+                        <textarea id="cookie-input" style="height: 120px;"
+                            placeholder='選填項目，適合極少數知道如何匯出 Cookie 的用戶...'></textarea>
+                        <input type="hidden" id="proxy-input" value="" />
+                        <input type="hidden" id="backend-input" value="" />
+                    </div>
                 </div>
 
-                <div class="setting-group">
-                    <label>🚀 Colab/HF 備援地址</label>
-                    <input type="text" id="backend-input" placeholder="https://....loca.lt" />
+                <div class="drawer-actions" style="margin-top: 32px; display: flex; flex-direction: column; gap: 12px;">
+                    <button id="save-settings" class="btn btn-primary" style="padding: 16px;">優化並發動引擎</button>
+                    <button id="toggle-manual" class="btn-text"
+                        style="opacity: 0.5; font-size: 0.8rem; text-decoration: underline;">顯示進階專家設定 (Cookies)</button>
+                    <button id="clear-settings" class="btn-text"
+                        style="color: var(--red); display: none;">移除專家設定</button>
                 </div>
-
-                <button id="save-settings" class="btn btn-primary">發動引擎 (Save & Restart)</button>
-                <button id="clear-settings" class="btn btn-text">拔出鑰匙 (Clear All)</button>
             </div>
         </div>
         <div id="drawer-overlay" class="drawer-overlay"></div>

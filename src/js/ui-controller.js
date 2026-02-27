@@ -72,6 +72,8 @@ export class UIController {
         this.$closeDrawer = document.getElementById('close-drawer');
         this.$saveSettings = document.getElementById('save-settings');
         this.$clearSettings = document.getElementById('clear-settings');
+        this.$toggleManual = document.getElementById('toggle-manual');
+        this.$manualArea = document.getElementById('manual-settings');
         this.$cookieInput = document.getElementById('cookie-input');
         this.$proxyInput = document.getElementById('proxy-input');
         this.$backendInput = document.getElementById('backend-input');
@@ -117,17 +119,23 @@ export class UIController {
         this.$closeDrawer?.addEventListener('click', () => this._toggleEngineDrawer(false));
         this.$drawerOverlay?.addEventListener('click', () => this._toggleEngineDrawer(false));
 
+        this.$toggleManual?.addEventListener('click', () => {
+            const isHidden = this.$manualArea.style.display === 'none';
+            this.$manualArea.style.display = isHidden ? 'block' : 'none';
+            this.$toggleManual.textContent = isHidden ? '隱藏專家設定' : '顯示進階專家設定 (Cookies)';
+        });
+
         this.$saveSettings?.addEventListener('click', () => {
             const config = {
-                cookies: this.$cookieInput.value.trim(),
-                proxy: this.$proxyInput.value.trim(),
-                backend: this.$backendInput.value.trim()
+                cookies: this.$cookieInput?.value.trim() || '',
+                proxy: '', // Automated
+                backend: '' // Automated
             };
             EngineConfig.save(config);
             this._toggleEngineDrawer(false);
             this._updateEngineStatus();
-            alert('🚀 引擎已發動！設置已保存。');
-            window.location.reload(); // Reload to refresh failover list
+            alert('🚀 引擎連線已優化！重啟中...');
+            window.location.reload();
         });
 
         this.$clearSettings?.addEventListener('click', () => {
