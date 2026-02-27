@@ -34,4 +34,4 @@ ENV PORT=10000
 EXPOSE 10000
 
 # 啟動伺服器
-CMD ["node", "server/index.js"]
+CMD ["npm", "start"]
