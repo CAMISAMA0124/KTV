@@ -39,6 +39,12 @@ body {
   letter-spacing: -0.01em;
 }
 
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 /* 🟢 Premium Background Orbs */
 .bg-glow {
   position: fixed;
@@ -93,15 +99,33 @@ body {
 
 /* 🟢 Container */
 .container {
+  flex: 1;
   max-width: 520px;
   margin: 0 auto;
-  padding: 40px 24px 160px;
+  padding: 40px 24px 100px;
   display: flex;
   flex-direction: column;
   gap: 32px;
 }
 
-/* 🟢 Hero */
+/* 🟢 Final Footer */
+.footer {
+  text-align: center;
+  padding: 40px 20px;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.copyright {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0.5px;
+}
+
+/* 🟢 Rest of the styles... 🟢 */
+
 .hero {
   text-align: center;
   margin-bottom: 8px;
@@ -130,7 +154,6 @@ body {
   font-weight: 700;
 }
 
-/* 🟢 Cards */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -141,7 +164,6 @@ body {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-/* 🟢 Search Input */
 .url-input-wrap {
   position: relative;
   padding: 24px;
@@ -179,7 +201,6 @@ body {
   transform: scale(1.2) rotate(8deg);
 }
 
-/* 🟢 API Dot */
 .api-status-dot {
   position: absolute;
   right: 64px;
@@ -221,7 +242,6 @@ body {
   }
 }
 
-/* 🟢 Mode Selection */
 .mode-stack {
   display: flex;
   flex-direction: column;
@@ -282,7 +302,6 @@ body {
   color: var(--text-2);
 }
 
-/* 🟢 Progress */
 .progress-wrap {
   padding: 40px 24px;
   text-align: center;
@@ -319,7 +338,6 @@ body {
   box-shadow: 0 0 15px rgba(167, 139, 250, 0.3);
 }
 
-/* 🟢 Wave */
 .vocal-wave {
   display: flex;
   align-items: center;
@@ -350,7 +368,6 @@ body {
   }
 }
 
-/* 🟢 History */
 .history-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -393,7 +410,6 @@ body {
   overflow: hidden;
 }
 
-/* 🟢 KTV Actions */
 .ktv-actions {
   display: flex;
   align-items: center;
@@ -456,7 +472,6 @@ body {
   color: var(--accent-blue);
 }
 
-/* 🟢 Buttons */
 .btn-primary {
   width: 100%;
   padding: 22px;
@@ -490,7 +505,6 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
-/* 🟢 Search Results */
 .search-results {
   display: flex;
   flex-direction: column;
@@ -532,7 +546,6 @@ body {
   line-height: 1.3;
 }
 
-/* 🟢 Badge Shimmer */
 .badge {
   font-size: 0.75rem;
   padding: 4px 12px;
