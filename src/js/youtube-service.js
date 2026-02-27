@@ -7,6 +7,7 @@
 // Render is fallback
 const SAME_ORIGIN_API = [''];  // '' = relative path → uses current domain's /api
 const EXTERNAL_APIS = [
+    'https://wicked-maps-return.loca.lt', // Google Colab (Priority)
     import.meta.env.VITE_API_BASE,
     'https://ktv-ey9t.onrender.com',
 ].filter(Boolean).map(url => url.replace(/\/$/, '').replace(/\/api$/, ''));
@@ -31,6 +32,10 @@ async function fetchWithFailover(path, options = {}) {
 
             const res = await fetch(url, {
                 ...options,
+                headers: {
+                    ...options.headers,
+                    'Bypass-Tunnel-Reminder': 'true' // Bypass localtunnel warning page
+                },
                 signal: options.signal || controller.signal
             });
             clearTimeout(timeoutId);
