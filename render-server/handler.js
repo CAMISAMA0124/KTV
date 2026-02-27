@@ -73,7 +73,7 @@ export async function getVideoInfo(url) {
 export async function searchVideos(query, limit = 5) {
     return new Promise((resolve, reject) => {
         const q = encodeURIComponent(query);
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&maxResults=${limit}&type=video&videoCategoryId=10&key=${YOUTUBE_API_KEY}`;
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&maxResults=${limit}&type=video&relevanceLanguage=zh&regionCode=TW&key=${YOUTUBE_API_KEY}`;
 
         https.get(url, (res) => {
             let data = '';
