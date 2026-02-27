@@ -472,6 +472,10 @@ export class UIController {
         }
     }
 
+    setFileName(name) {
+        if (this.$videoTitle) this.$videoTitle.textContent = name;
+    }
+
     showError(msg) {
         this.setState(UIState.ERROR);
         this.setStatus(msg);
@@ -510,11 +514,11 @@ export class UIController {
 
     _updateEngineStatus() {
         const config = EngineConfig.load();
-        const hasKey = config.cookies || config.backend;
+        const hasKey = config.cookies;
         if (this.$engineBtn) {
             this.$engineBtn.classList.toggle('active', !!hasKey);
             const label = this.$engineBtn.querySelector('.engine-label');
-            if (label) label.textContent = hasKey ? '引擎運轉中' : '發動引擎';
+            if (label) label.textContent = '設定';
         }
     }
 }
