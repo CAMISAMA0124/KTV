@@ -37,9 +37,6 @@ class KTVPlayer {
 
     /**
      * 載入分離後的音軌並準備播放
-     * @param {AudioBuffer} vocals 
-     * @param {AudioBuffer} accompaniment 
-     * @param {string} videoId 
      */
     async load(vocals, accompaniment, videoId) {
         if (this.ctx.state === 'suspended') await this.ctx.resume();
@@ -47,7 +44,7 @@ class KTVPlayer {
         this.vocalsBuffer = vocals;
         this.accompanimentBuffer = accompaniment;
 
-        // 初始化 YouTube Player (如果還沒建立)
+        // 初始化 YouTube Player
         if (!this.ytPlayer) {
             await this.initYTPlayer(videoId);
         } else {
@@ -55,6 +52,7 @@ class KTVPlayer {
                 this.ytPlayer.loadVideoById(videoId);
             } catch (e) {
                 console.warn('[KTV] Re-initializing player...');
+                this.ytPlayer = null;
                 await this.initYTPlayer(videoId);
             }
         }

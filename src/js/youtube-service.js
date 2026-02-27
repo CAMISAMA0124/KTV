@@ -3,11 +3,15 @@
  * YouTube 服務模組 — 整合搜尋與音訊擷取 (支援雙後端備援)
  */
 
-const API_ENDPOINTS = [
+// Vercel /api routes are same-origin (no CORS, rotating IPs) → always first
+// Render is fallback
+const SAME_ORIGIN_API = [''];  // '' = relative path → uses current domain's /api
+const EXTERNAL_APIS = [
     import.meta.env.VITE_API_BASE,
-    'https://ktv-ey9t.onrender.com', // Render (新後台)
-    'https://camisama-ktv.zeabur.app/api' // Zeabur (舊備援)
+    'https://ktv-ey9t.onrender.com',
 ].filter(Boolean).map(url => url.replace(/\/$/, '').replace(/\/api$/, ''));
+
+const API_ENDPOINTS = [...SAME_ORIGIN_API, ...EXTERNAL_APIS];
 
 /**
  * 具備備援機制的 Fetch
@@ -17,12 +21,13 @@ async function fetchWithFailover(path, options = {}) {
 
     for (const base of API_ENDPOINTS) {
         try {
-            const url = `${base}${path}`;
-            console.log(`[Failover] Trying API: ${url}`);
+            // '' = Vercel same-origin /api route, otherwise external base
+            const url = base === '' ? `/api${path}` : `${base}${path}`;
+            console.log(`[Failover] Trying: ${url}`);
 
-            // 加入 10 秒超時，避免個別後端卡死
+            const isVercel = base === '';
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const timeoutId = setTimeout(() => controller.abort(), isVercel ? 30000 : 10000);
 
             const res = await fetch(url, {
                 ...options,
@@ -36,7 +41,7 @@ async function fetchWithFailover(path, options = {}) {
 
             return res;
         } catch (e) {
-            console.warn(`[Failover] ${base} failed: ${e.message}`);
+            console.warn(`[Failover] ${base || 'Vercel'} failed: ${e.message}`);
             lastError = e;
         }
     }

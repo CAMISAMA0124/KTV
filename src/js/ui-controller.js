@@ -392,14 +392,14 @@ export class UIController {
         this.setState(UIState.DONE);
         this.setStatus('🎉 分析完成！');
 
-        // 持久化處理
         if (metadata && metadata.id) {
-            // 初始化同步播放器
-            this.setStatus('📺 載入同步播放器...');
+            // 1. 先讓結果面板可見（YouTube IFrame 需要看得到容器才能初始化）
+            this.$resultPanel.style.display = 'flex';
+            this.$resultPanel.classList.add('visible');
+            this.setStatus('💾 正在存檔...');
 
-            // 儲存至本地 OPFS
+            // 2. 存檔
             try {
-                this.setStatus('💾 正在存檔至手機...');
                 await saveStem(metadata.id, 'vocals', vocalsBlob);
                 await saveStem(metadata.id, 'accompaniment', accompanimentBlob);
                 addToHistory(metadata);
@@ -408,20 +408,19 @@ export class UIController {
                 console.error('[Persistence] Save failed:', e);
             }
 
-            // 最後才載入播放器，給 UI 一點時間轉場並顯現容器
-            this.setStatus('📺 準備播放環境...');
+            // 3. 等 DOM 真正渲染出容器後再初始化 YouTube Player
+            this.setStatus('📺 載入影片播放器...');
             this.$videoOverlay.classList.add('active');
-
-            await new Promise(r => setTimeout(r, 600));
+            await new Promise(r => setTimeout(r, 800));
 
             try {
                 const vBuffer = await this._blobToAudioBuffer(vocalsBlob);
                 const aBuffer = await this._blobToAudioBuffer(accompanimentBlob);
                 await ktv.load(vBuffer, aBuffer, metadata.id);
-                this.setStatus('✅ 準備完成，點擊播放開始熱唱！');
+                this.setStatus('✅ 準備完成！點擊影片開始熱唱 🎤');
             } catch (err) {
                 console.error('[KTV] Load failed:', err);
-                this.setStatus('⚠️ 播放器啟動失敗，請點擊重試');
+                this.setStatus('⚠️ 影片播放器啟動失敗，但您仍可下載人聲/伴奏');
             } finally {
                 this.$videoOverlay.classList.remove('active');
             }
