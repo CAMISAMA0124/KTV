@@ -169,7 +169,7 @@ export async function extractAudio(url, onProgress) {
                 const nodePath = process.platform === 'win32' ? 'node' : '/usr/local/bin/node';
                 const args = [
                     url,
-                    '-f', 'ba/b',
+                    '-f', 'bestaudio[ext=m4a]/bestaudio/best', // Avoid re-encoding to save CPU/RAM
                     '--no-playlist', '--no-part', '--no-cache-dir', '--force-overwrites',
                     '--output', tmpPath,
                     '--js-runtimes', nodePath,
