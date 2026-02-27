@@ -409,21 +409,21 @@ export class UIController {
             }
 
             // 最後才載入播放器，給 UI 一點時間轉場並顯現容器
-            this.setStatus('📺 載入同步播放器...');
-            this.$videoOverlay.classList.add('active'); // 顯示同步中疊加層
+            this.setStatus('📺 準備播放環境...');
+            this.$videoOverlay.classList.add('active');
 
-            await new Promise(r => setTimeout(r, 400));
-            const vBuffer = await this._blobToAudioBuffer(vocalsBlob);
-            const aBuffer = await this._blobToAudioBuffer(accompanimentBlob);
+            await new Promise(r => setTimeout(r, 600));
 
             try {
+                const vBuffer = await this._blobToAudioBuffer(vocalsBlob);
+                const aBuffer = await this._blobToAudioBuffer(accompanimentBlob);
                 await ktv.load(vBuffer, aBuffer, metadata.id);
-                this.setStatus('✅ 準備完成，開始熱唱！');
+                this.setStatus('✅ 準備完成，點擊播放開始熱唱！');
             } catch (err) {
                 console.error('[KTV] Load failed:', err);
-                this.setStatus('⚠️ 播放器初始化失敗，請重新試試');
+                this.setStatus('⚠️ 播放器啟動失敗，請點擊重試');
             } finally {
-                this.$videoOverlay.classList.remove('active'); // 移除疊加層
+                this.$videoOverlay.classList.remove('active');
             }
         } else {
             this.$resultPanel.style.display = 'none';

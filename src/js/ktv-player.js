@@ -86,14 +86,16 @@ class KTVPlayer {
                             'rel': 0,
                             'modestbranding': 1,
                             'playsinline': 1,
-                            'enablejsapi': 1
+                            'enablejsapi': 1,
+                            'widget_referrer': window.location.origin
                         },
                         events: {
-                            'onReady': () => {
+                            'onReady': (event) => {
                                 console.log('[KTV Player] Ready');
+                                // Try to play/mute to warm up on mobile
                                 try {
-                                    this.ytPlayer.unMute();
-                                    this.ytPlayer.mute();
+                                    event.target.mute();
+                                    event.target.playVideo();
                                 } catch (e) { }
                                 resolve();
                             },
