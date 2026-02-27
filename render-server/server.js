@@ -11,13 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-    exposedHeaders: ['Content-Disposition', 'X-Video-Title', 'X-Video-Duration', 'Content-Length']
-}));
+app.use(cors()); // Simplified but fully permissive for cross-origin failover
 app.use(express.json());
+
+// Add pre-flight options support
+app.options('*', cors());
 
 let isReady = false;
 

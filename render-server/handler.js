@@ -58,9 +58,13 @@ async function getCookiesFile() {
                 const expiry = Math.floor(c.expirationDate || 0);
                 const name = c.name || '';
                 const value = c.value || '';
-                return `${domain}\t${flag}\t${path}\t${secure}\t${expiry}\t${name}\t${value}`;
+
+                // YouTube cookies often require correct HttpOnly representation
+                // Netscape format: domain, flag, path, secure, expiry, name, value
+                const prefix = c.httpOnly ? '#HttpOnly_' : '';
+                return `${prefix}${domain}\t${flag}\t${path}\t${secure}\t${expiry}\t${name}\t${value}`;
             }).join('\n');
-            content = `# Netscape HTTP Cookie File\n${netscape}`;
+            content = `# Netscape HTTP Cookie File\n${netscape}\n`;
         } catch (e) {
             console.error('[Cookies] JSON Parse Error:', e.message);
         }
@@ -68,6 +72,7 @@ async function getCookiesFile() {
 
     const cookiePath = path.join(os.tmpdir(), `yt_cookies_${Date.now()}.txt`);
     await fs.writeFile(cookiePath, content);
+    console.log('[Cookies] Cookie file created at:', cookiePath);
     return cookiePath;
 }
 
@@ -76,7 +81,10 @@ export async function getVideoInfo(url) {
     const cookiePath = await getCookiesFile();
     const cookieFlags = cookiePath ? ['--cookies', cookiePath] : [];
 
-    // If we have cookies, start with default (web) as forced clients often break cookies
+    // Explicit node path for Render's Docker environment
+    const nodePath = process.platform === 'win32' ? 'node' : '/usr/local/bin/node';
+
+    // If we have cookies, start with default (web)
     const clients = cookiePath ? [null] : FALLBACK_CLIENTS;
 
     for (const client of clients) {
@@ -84,7 +92,7 @@ export async function getVideoInfo(url) {
             console.log(`[yt-dlp] Trying getVideoInfo with client: ${client || 'default'} (Cookies: ${!!cookiePath})`);
             const args = [
                 url, '--dump-json', '--no-cache-dir',
-                '--js-runtimes', 'node',
+                '--js-runtimes', nodePath,
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 ...cookieFlags
             ];
@@ -156,12 +164,13 @@ export async function extractAudio(url, onProgress) {
         try {
             console.log(`[Extract] Trying client: ${client || 'default'} (Cookies: ${!!cookiePath})`);
             await new Promise((resolve, reject) => {
+                const nodePath = process.platform === 'win32' ? 'node' : '/usr/local/bin/node';
                 const args = [
                     url,
                     '-f', 'ba/b',
                     '--no-playlist', '--no-part', '--no-cache-dir', '--force-overwrites',
                     '--output', tmpPath,
-                    '--js-runtimes', 'node',
+                    '--js-runtimes', nodePath,
                     '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     ...cookieFlags
                 ];
