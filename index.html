@@ -50,12 +50,7 @@
             </section>
             <!-- Input Card -->
             <section class="card input-card">
-                <div class="tabs" role="tablist">
-                    <button id="tab-url" class="tab active" role="tab">YouTube 搜尋</button>
-                    <button id="tab-upload" class="tab" role="tab">上傳檔案</button>
-                </div>
-
-                <div class="tab-content" id="panel-url">
+                <div class="tab-content active" id="panel-url">
                     <form id="search-form" class="url-input-wrap">
                         <input type="text" id="url-input" class="url-input" placeholder="搜尋 YouTube 歌曲或貼上網址..."
                             required />
@@ -64,7 +59,7 @@
                     </form>
 
                     <div class="search-status-bar">
-                        <span class="dot"></span> <span id="search-status-text">上傳音樂或貼上 YouTube 連結開始</span>
+                        <span class="dot"></span> <span id="search-status-text">搜尋歌曲或貼上 YouTube 連結開始</span>
                     </div>
 
                     <!-- Search Results -->
@@ -85,14 +80,6 @@
                     </div>
 
                     <button id="extract-btn" class="btn btn-primary" style="display: none;">匯入並分析</button>
-                </div>
-
-                <div class="tab-content" id="panel-upload" style="display: none;">
-                    <div id="drop-zone" class="drop-zone">
-                        <div class="drop-icon">🎵</div>
-                        <p>將音訊拖曳至此，或<span>點擊上傳</span></p>
-                        <input type="file" id="file-input" accept="audio/*" hidden />
-                    </div>
                 </div>
             </section>
 

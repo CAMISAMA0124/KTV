@@ -20,12 +20,7 @@ export class UIController {
         this._selectedVideo = null;
         this._currentPitch = 0;
 
-        // DOM refs — upload tab
-        this.$dropZone = document.getElementById('drop-zone');
-        this.$fileInput = document.getElementById('file-input');
-        this.$fileName = document.getElementById('file-name');
-
-        // DOM refs — Search tab
+        // DOM refs — Search
         this.$urlInput = document.getElementById('url-input');
         this.$urlClearBtn = document.getElementById('url-clear-btn');
         this.$extractBtn = document.getElementById('extract-btn');
@@ -69,10 +64,6 @@ export class UIController {
         this.$pitchUp = document.getElementById('pitch-up');
         this.$pitchVal = document.getElementById('pitch-val');
 
-        // Tabs
-        this.$tabUpload = document.getElementById('tab-upload');
-        this.$tabUrl = document.getElementById('tab-url');
-        this.$panelUpload = document.getElementById('panel-upload');
         this.$panelUrl = document.getElementById('panel-url');
 
         this._bindEvents();
@@ -90,10 +81,6 @@ export class UIController {
 
     // ── Bind events ──────────────────────────────────────────
     _bindEvents() {
-        // Tab switching
-        this.$tabUpload.addEventListener('click', () => this._switchTab('upload'));
-        this.$tabUrl.addEventListener('click', () => this._switchTab('url'));
-
         // KTV Controls
         this.$guideToggle?.addEventListener('click', () => {
             const isActive = this.$guideToggle.classList.contains('active');
@@ -122,28 +109,6 @@ export class UIController {
 
         document.addEventListener('click', () => {
             if (this.$dlMenu) this.$dlMenu.style.display = 'none';
-        });
-
-        // Drop zone
-        this.$dropZone.addEventListener('dragover', e => {
-            e.preventDefault();
-            if (this.state === UIState.IDLE) this.$dropZone.classList.add('drag-over');
-        });
-        this.$dropZone.addEventListener('dragleave', () => this.$dropZone.classList.remove('drag-over'));
-        this.$dropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            this.$dropZone.classList.remove('drag-over');
-            if (this.state !== UIState.IDLE) return;
-            const file = e.dataTransfer.files[0];
-            if (file && this._validateFile(file)) this.emit('file-selected', file);
-        });
-        this.$dropZone.addEventListener('click', () => {
-            if (this.state === UIState.IDLE) this.$fileInput.click();
-        });
-        this.$fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file && this._validateFile(file)) this.emit('file-selected', file);
-            e.target.value = '';
         });
 
         // URL / Search input
@@ -199,16 +164,6 @@ export class UIController {
         this.$pitchDown.disabled = this._currentPitch <= -5;
         this.$pitchUp.disabled = this._currentPitch >= 5;
         ktv.setPitch(this._currentPitch);
-    }
-
-    _switchTab(tab) {
-        const toUpload = tab === 'upload';
-        this.$tabUpload.classList.toggle('active', toUpload);
-        this.$tabUrl.classList.toggle('active', !toUpload);
-        this.$tabUpload.setAttribute('aria-selected', toUpload);
-        this.$tabUrl.setAttribute('aria-selected', !toUpload);
-        this.$panelUpload.classList.toggle('active', toUpload);
-        this.$panelUrl.classList.toggle('active', !toUpload);
     }
 
     async _handleDirectURL(url) {
@@ -338,15 +293,6 @@ export class UIController {
         });
     }
 
-    // ── File validation ──────────────────────────────────────
-    _validateFile(file) {
-        const ext = file.name.split('.').pop().toLowerCase();
-        const ok = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(ext);
-        if (!ok) { this.showError('❌ 請上傳音訊檔案 (MP3, WAV, FLAC, M4A)'); return false; }
-        if (file.size > 200 * 1024 * 1024) { this.showError('❌ 檔案過大 (限制 200MB)'); return false; }
-        return true;
-    }
-
     // ── State machine ────────────────────────────────────────
     setState(state) {
         this.state = state;
@@ -377,10 +323,7 @@ export class UIController {
             this.$resultPanel.classList.add('visible');
             this.$resultPanel.setAttribute('aria-hidden', 'false');
             this.$waveform.classList.remove('active');
-            this.$dropZone.classList.add('done');
         }
-
-        this.$dropZone.classList.toggle('disabled', [UIState.LOADING_MODEL, UIState.PROCESSING].includes(state));
     }
 
     setStatus(msg) {
@@ -413,10 +356,6 @@ export class UIController {
         if (!this.$modelStatus) return;
         this.$modelStatus.textContent = fromCache ? `⚡ 快取命中 (${Math.round(mb)} MB)` : `📥 已下載並快取 (${Math.round(mb)} MB)`;
         this.$modelStatus.className = 'model-cache-status ' + (fromCache ? 'cache-hit' : 'cache-miss');
-    }
-
-    setFileName(name) {
-        if (this.$fileName) { this.$fileName.textContent = name; this.$fileName.style.display = 'block'; }
     }
 
     async setResults(results, originalFileName, metadata = null) {

@@ -171,12 +171,6 @@ ui.on('video-selected', (video) => {
     currentMetadata = video;
 });
 
-ui.on('file-selected', (file) => {
-    // 檔案選取後預設顯示模式選擇 (此處簡化為 AI 模式，或可擴充 UI)
-    currentMetadata = null;
-    processFile(file, null, 'ai');
-});
-
 ui.on('mode-selected', (mode) => {
     if (currentMetadata) {
         processURL(currentMetadata.url, mode);
