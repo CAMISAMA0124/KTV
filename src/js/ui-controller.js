@@ -53,12 +53,9 @@ export class UIController {
 
         // DOM refs — result
         this.$resultPanel = document.getElementById('result-panel');
-        this.$vocalsDownload = document.getElementById('vocals-download');
-        this.$accompDownload = document.getElementById('accomp-download');
-        this.$dlMenuBtn = document.getElementById('dl-menu-btn');
         this.$videoOverlay = document.getElementById('video-overlay');
-        this.$dlMenu = document.getElementById('dl-menu');
         this.$resetBtn = document.getElementById('reset-btn');
+        this.$saveBtn = document.getElementById('save-btn');
 
         this.$guideToggle = document.getElementById('guide-toggle');
         this.$pitchDown = document.getElementById('pitch-down');
@@ -146,14 +143,19 @@ export class UIController {
             }
         });
 
-        this.$dlMenuBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isOpen = this.$dlMenu.style.display === 'flex';
-            this.$dlMenu.style.display = isOpen ? 'none' : 'flex';
-        });
+        this.$saveBtn?.addEventListener('click', () => {
+            if (!this._currentVocalsURL) return;
+            const a1 = document.createElement('a');
+            a1.href = this._currentVocalsURL;
+            a1.download = `${this._currentBaseName}_vocals.wav`;
+            a1.click();
 
-        document.addEventListener('click', () => {
-            if (this.$dlMenu) this.$dlMenu.style.display = 'none';
+            setTimeout(() => {
+                const a2 = document.createElement('a');
+                a2.href = this._currentAccompURL;
+                a2.download = `${this._currentBaseName}_instrumental.wav`;
+                a2.click();
+            }, 300);
         });
 
         // URL / Search input
@@ -243,24 +245,54 @@ export class UIController {
         this.$searchResults.innerHTML = results.map(video => `
             <div class="search-item" data-id="${video.id}">
                 <img class="search-thumb" src="${video.thumbnail}" alt="">
-                <div class="search-meta">
-                    <div class="search-title">${video.title}</div>
+                <div class="search-meta" style="flex: 1; min-width: 0;">
+                    <div class="search-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${video.title}</div>
                     <div class="search-sub">
                         <span>👤 ${video.uploader}</span>
                         <span>⏱️ ${this._formatSeconds(video.duration)}</span>
                     </div>
                 </div>
+                <button class="inline-extract-btn" style="display: none; margin-left: auto; align-self: center; padding: 12px 20px; border-radius: 20px; border: none; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%); color: #fff; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 5px 15px rgba(167, 139, 250, 0.3); transition: 0.3s; white-space: nowrap; flex-shrink: 0; align-items: center; justify-content: center;">匯入分析</button>
             </div>
         `).join('');
 
         this.$searchResults.style.display = 'flex';
 
         this.$searchResults.querySelectorAll('.search-item').forEach((item, idx) => {
+            const btn = item.querySelector('.inline-extract-btn');
+
             item.onclick = () => {
                 this._selectVideo(results[idx]);
-                this.$searchResults.querySelectorAll('.search-item').forEach(el => el.classList.remove('selected'));
+
+                // Hide the main preview and extract btn because we have the inline one!
+                this.$videoPreview.style.display = 'none';
+                this.$extractBtn.style.display = 'none';
+
+                // Reset all other items
+                this.$searchResults.querySelectorAll('.search-item').forEach(el => {
+                    el.classList.remove('selected');
+                    const b = el.querySelector('.inline-extract-btn');
+                    if (b) b.style.display = 'none';
+                });
+
+                // Set this item as selected
                 item.classList.add('selected');
+                if (btn) {
+                    btn.style.display = 'flex';
+                    btn.textContent = !this._apiAvailable ? '⚠️連線異常' : '匯入分析';
+                    btn.disabled = !this._apiAvailable;
+                }
             };
+
+            if (btn) {
+                btn.onclick = (e) => {
+                    e.stopPropagation(); // prevent item.onclick from firing again
+                    if (!this._apiAvailable) return;
+                    if (this._selectedVideo && this.state === UIState.IDLE) {
+                        this._showModeSelection();
+                    }
+                };
+            }
         });
     }
 
@@ -428,10 +460,9 @@ export class UIController {
         const { vocalsURL, accompanimentURL, vocalsBlob, accompanimentBlob } = results;
         const base = originalFileName.replace(/\.[^.]+$/, '');
 
-        this.$vocalsDownload.href = vocalsURL;
-        this.$vocalsDownload.download = `${base}_vocals.wav`;
-        this.$accompDownload.href = accompanimentURL;
-        this.$accompDownload.download = `${base}_instrumental.wav`;
+        this._currentVocalsURL = vocalsURL;
+        this._currentAccompURL = accompanimentURL;
+        this._currentBaseName = base;
 
         this.setState(UIState.DONE);
         this.setStatus('🎉 分析完成！');
