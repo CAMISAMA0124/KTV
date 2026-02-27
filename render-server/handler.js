@@ -7,6 +7,9 @@ const YTDlpWrap = YTDlpWrapPkg.default || YTDlpWrapPkg;
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
+import https from 'https';
+
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBBZzotQ2jYfdyqrZNhKcO-1AoGS5vI76k';
 
 // Use system yt-dlp first (pre-installed in Docker)
 const SYSTEM_YTDLP = '/usr/local/bin/yt-dlp';
@@ -68,32 +71,35 @@ export async function getVideoInfo(url) {
 }
 
 export async function searchVideos(query, limit = 5) {
-    try {
-        const result = await ytDlp.execPromise([
-            `ytsearch${limit}:${query}`,
-            '--dump-json',
-            '--no-playlist',
-            '--flat-playlist',
-            ...BYPASS_FLAGS
-        ]);
-        const lines = result.trim().split('\n').filter(l => l.trim() !== '');
-        return lines.map(line => {
-            try {
-                const info = JSON.parse(line);
-                return {
-                    id: info.id,
-                    url: `https://www.youtube.com/watch?v=${info.id}`,
-                    title: info.title,
-                    duration: info.duration,
-                    thumbnail: info.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${info.id}/hqdefault.jpg`,
-                    uploader: info.uploader || info.channel,
-                };
-            } catch (e) { return null; }
-        }).filter(Boolean);
-    } catch (e) {
-        console.error('[yt-dlp] Search Error:', e.message);
-        throw e;
-    }
+    return new Promise((resolve, reject) => {
+        const q = encodeURIComponent(query);
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&maxResults=${limit}&type=video&videoCategoryId=10&key=${YOUTUBE_API_KEY}`;
+
+        https.get(url, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    if (json.error) {
+                        console.error('[YouTube API] Error:', json.error.message);
+                        return reject(new Error(json.error.message));
+                    }
+                    const results = (json.items || []).map(item => ({
+                        id: item.id.videoId,
+                        url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+                        title: item.snippet.title,
+                        uploader: item.snippet.channelTitle,
+                        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+                        duration: 0, // Duration requires separate API call
+                    }));
+                    resolve(results);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }).on('error', reject);
+    });
 }
 
 export async function extractAudio(url, onProgress) {
