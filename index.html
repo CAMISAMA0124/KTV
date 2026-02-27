@@ -85,28 +85,34 @@
                 </div>
             </section>
 
-            <!-- Mode Selection -->
-            <section id="mode-selection" class="card mode-card" style="display: none;">
-                <h2 class="section-title"><span class="title-icon">✨</span>選擇處理模式</h2>
-                <div class="mode-options">
-                    <button id="mode-quick" class="mode-btn">
-                        <div class="mode-icon-wrap quick">⚡</div>
-                        <div class="mode-info">
-                            <h3>快速去人聲 (模板)</h3>
-                            <p>瞬間完成，適合一般導唱</p>
+            <!-- Mode Selection Card -->
+            <section id="mode-selection" class="card" style="display: none; padding: 24px;">
+                <h2
+                    style="font-size: 1.25rem; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: var(--accent);">✨</span> 選擇處理模式
+                </h2>
+                <div class="mode-stack" style="display: flex; flex-direction: column; gap: 12px;">
+                    <button id="mode-quick" class="mode-tile">
+                        <div class="mode-tile-icon quick">⚡</div>
+                        <div class="mode-tile-body">
+                            <div class="mode-tile-title">快速去人聲 (模板) <span class="badge">推薦</span></div>
+                            <div class="mode-tile-desc">瞬間完成，適合一般娛樂導唱</div>
                         </div>
-                        <span class="mode-badge">推薦</span>
+                        <div class="mode-tile-arrow">→</div>
                     </button>
-                    <button id="mode-ai" class="mode-btn">
-                        <div class="mode-icon-wrap ai">🧠</div>
-                        <div class="mode-info">
-                            <h3>AI 分離 (高品質)</h3>
-                            <p>需分次處理，音質最乾淨</p>
+
+                    <button id="mode-ai" class="mode-tile">
+                        <div class="mode-tile-icon ai">🧠</div>
+                        <div class="mode-tile-body">
+                            <div class="mode-tile-title">AI 分離 (高品質)</div>
+                            <div class="mode-tile-desc">高保真音質，適合製作正式伴奏</div>
                         </div>
-                        <span class="mode-time">約 1-3 分鐘</span>
+                        <div class="mode-tile-arrow">→</div>
                     </button>
                 </div>
-                <p class="mode-tip">💡 提示：若快速模式效果不佳，請嘗試 AI 高品質版。</p>
+                <p style="margin-top: 16px; font-size: 0.8rem; color: var(--text-3); text-align: center;">
+                    💡 若快速模式效果不佳，請嘗試 AI 高品質版。
+                </p>
             </section>
 
             <!-- Processing Progress -->
