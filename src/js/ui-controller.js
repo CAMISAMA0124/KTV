@@ -475,7 +475,9 @@ export class UIController {
     showError(msg) {
         this.setState(UIState.ERROR);
         this.setStatus(msg);
-        setTimeout(() => { if (this.state === UIState.ERROR) this.reset(); }, 4000);
+        console.error('[UI] Fatal Error:', msg);
+        // Don't auto-reset immediately so user can read the error
+        // setTimeout(() => { if (this.state === UIState.ERROR) this.reset(); }, 6000);
     }
 
     async _blobToAudioBuffer(blob) {

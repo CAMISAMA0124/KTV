@@ -139,15 +139,36 @@ export async function extractFromURL(url, onProgress, signal) {
         throw new Error(data.error || `HTTP ${res.status}`);
     }
 
-    onProgress?.(80);
+    const contentLength = +res.headers.get('Content-Length');
+    const reader = res.body.getReader();
+    let receivedLength = 0;
+    const chunks = [];
 
-    // 取得檔案名稱
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedLength += value.length;
+        if (contentLength) {
+            // Mapping 5% - 95% total extraction progress
+            const pct = 5 + (receivedLength / contentLength) * 90;
+            onProgress?.(pct);
+        }
+    }
+
+    // Combine chunks
+    const buffer = new Uint8Array(receivedLength);
+    let position = 0;
+    for (const chunk of chunks) {
+        buffer.set(chunk, position);
+        position += chunk.length;
+    }
+
+    onProgress?.(100);
+
     const titleHeader = res.headers.get('X-Video-Title');
     const title = titleHeader ? decodeURIComponent(titleHeader) : 'youtube_audio';
     const filename = `${title}.m4a`;
-
-    const buffer = await res.arrayBuffer();
-    onProgress?.(100);
 
     return new File([buffer], filename, { type: 'audio/mp4' });
 }
