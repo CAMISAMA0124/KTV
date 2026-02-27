@@ -69,6 +69,7 @@ export class UIController {
         this.$engineBtn = document.getElementById('engine-btn');
         this.$engineDrawer = document.getElementById('engine-drawer');
         this.$drawerOverlay = document.getElementById('drawer-overlay');
+        this.$closeDrawer = document.getElementById('close-drawer');
         this.$saveSettings = document.getElementById('save-settings');
         this.$clearCacheBtn = document.getElementById('clear-cache-btn');
         this.$toggleManual = document.getElementById('toggle-manual');
