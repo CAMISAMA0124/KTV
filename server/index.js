@@ -109,76 +109,82 @@ app.all(['/api/info', '/api/info.json'], async (req, res) => {
 });
 
 app.all(['/api/proxy', '/api/proxy.json'], async (req, res) => {
-    const { url, aFormat = 'mp3', isAudioOnly = true } = (req.method === 'GET' ? req.query : req.body) || {};
+    const { url } = (req.method === 'GET' ? req.query : req.body) || {};
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
-    console.log(`[Local Proxy v19.3] Request: ${url}`);
+    console.log(`[Proxy] Stream request: ${url}`);
     const videoIdMatch = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/)([^"&?\/\s]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
-    // ── 策略 1: 本地 play-dl 提取 (最強大，使用用戶家用 IP) ──
+    // 尋找音源連結 (內部使用，不回傳給前端)
+    let audioUrl = null;
+
+    // 策略 1: play-dl
     try {
-        console.log(`[Local Proxy] Strategy 1: play-dl extraction...`);
         const info = await play.video_info(url);
-        // 抓取音檔格式
-        const format = info.format.find(f => f.mimeType && f.mimeType.includes('audio/mp4')) || info.format.find(f => f.hasAudio && !f.hasVideo);
-        if (format && format.url) {
-            console.log(`[Local Proxy] play-dl success!`);
-            return res.json({ url: format.url });
+        const format = info.format.find(f => f.mimeType && f.mimeType.includes('audio/mp4'))
+            || info.format.find(f => f.mimeType && f.mimeType.includes('audio/webm'))
+            || info.format.find(f => f.hasAudio && !f.hasVideo);
+        if (format?.url) {
+            audioUrl = format.url;
+            console.log(`[Proxy] play-dl found audio URL`);
         }
     } catch (e) {
-        console.warn(`[Local Proxy] play-dl failed: ${e.message}`);
+        console.warn(`[Proxy] play-dl failed: ${e.message}`);
     }
 
-    // ── 策略 2: 本地 ytdl-core 備援 ──
-    try {
-        console.log(`[Local Proxy] Strategy 2: ytdl-core extraction...`);
-        const info = await ytdl.getInfo(url);
-        const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
-        if (format && format.url) {
-            console.log(`[Local Proxy] ytdl success!`);
-            return res.json({ url: format.url });
-        }
-    } catch (e) {
-        console.warn(`[Local Proxy] ytdl failed: ${e.message}`);
-    }
-
-    // ── 策略 2: 備援 Piped/Cobalt ──
-    const targets = [
-        { type: 'piped', url: videoId ? `https://pipedapi.lunar.icu/streams/${videoId}` : null },
-        { type: 'cobalt', url: 'https://api.cobalt.tools/api/json' }
-    ].filter(t => t.url);
-
-    for (const t of targets) {
+    // 策略 2: ytdl-core
+    if (!audioUrl) {
         try {
-            console.log(`[Local Proxy] Trying fallback ${t.type}: ${t.url}`);
-            const options = t.type === 'cobalt' ? {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Origin': 'https://cobalt.tools',
-                    'Referer': 'https://cobalt.tools/'
-                },
-                body: JSON.stringify({ url, aFormat, isAudioOnly })
-            } : { method: 'GET' };
-
-            const response = await fetch(t.url, { ...options, signal: AbortSignal.timeout(8000) });
-            if (response.ok) {
-                const data = await response.json();
-                if (t.type === 'piped') {
-                    const stream = data.audioStreams?.[0]?.url || data.adaptiveFormats?.find(f => f.type.includes('audio/mp4'))?.url;
-                    if (stream) return res.json({ url: stream });
-                } else if (data.url) {
-                    return res.json({ url: data.url });
-                }
+            const info = await ytdl.getInfo(url);
+            const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+            if (format?.url) {
+                audioUrl = format.url;
+                console.log(`[Proxy] ytdl found audio URL`);
             }
         } catch (e) {
-            console.warn(`[Local Proxy] ${t.type} failed: ${e.message}`);
+            console.warn(`[Proxy] ytdl failed: ${e.message}`);
         }
     }
-    res.status(502).json({ error: 'LOCAL_PROXY_ALL_FAILED' });
+
+    if (!audioUrl) {
+        return res.status(502).json({ error: 'LOCAL_PROXY_ALL_FAILED', message: '無法取得音源連結' });
+    }
+
+    // ── 核心修正：直接在後端串流音訊給前端 ──
+    // 這樣前端永遠不會碰到 googlevideo.com 的 CORS 限制
+    try {
+        console.log(`[Proxy] Streaming audio to client...`);
+        const audioRes = await fetch(audioUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+                'Referer': 'https://www.youtube.com/',
+                'Origin': 'https://www.youtube.com'
+            },
+            signal: AbortSignal.timeout(30000)
+        });
+
+        if (!audioRes.ok) throw new Error(`upstream ${audioRes.status}`);
+
+        res.setHeader('Content-Type', audioRes.headers.get('content-type') || 'audio/webm');
+        res.setHeader('Content-Disposition', `attachment; filename="${videoId || 'audio'}.mp3"`);
+        const cl = audioRes.headers.get('content-length');
+        if (cl) res.setHeader('Content-Length', cl);
+
+        // Node.js stream pipe
+        const { Readable } = await import('stream');
+        const readable = Readable.fromWeb(audioRes.body);
+        readable.pipe(res);
+        readable.on('error', (e) => {
+            console.error('[Proxy] Stream error:', e.message);
+            res.destroy();
+        });
+    } catch (e) {
+        console.error('[Proxy] Streaming failed:', e.message);
+        if (!res.headersSent) res.status(502).json({ error: 'STREAM_FAILED', message: e.message });
+    }
 });
+
 
 
 

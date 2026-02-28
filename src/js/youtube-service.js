@@ -109,19 +109,25 @@ export async function fetchVideoInfo(url) {
     };
 }
 
-/** 3. 下載 */
+/** 3. 下載 (V34 直接串流版 - 後端代理全部字節) */
 export async function extractFromURL(url, onProgress, signal) {
     const videoId = getYouTubeId(url);
+
+    // 後端現在直接串流音訊，不再回傳 URL
+    // 只需直接下載後端的 /api/proxy 回應串流即可
     const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
-    const data = await res.json();
-    if (!data.url) throw new Error('解析鏈路失敗，請嘗試手動登入隧道。');
 
-    const response = await fetch(data.url, { signal });
-    if (!response.ok) throw new Error('影片載入中斷');
+    // 確認是音訊串流（Content-Type 是 audio/*）
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('audio')) {
+        // 可能是 JSON 錯誤訊息
+        const data = await res.json();
+        throw new Error(data.message || data.error || '後端無法解析音源');
+    }
 
-    const total = parseInt(response.headers.get('content-length'), 10) || 10000000;
+    const total = parseInt(res.headers.get('content-length'), 10) || 10000000;
     let loaded = 0;
-    const reader = response.body.getReader();
+    const reader = res.body.getReader();
     const chunks = [];
 
     while (true) {
@@ -131,8 +137,8 @@ export async function extractFromURL(url, onProgress, signal) {
         loaded += value.length;
         if (onProgress) onProgress((loaded / total) * 100);
     }
-    const blob = new Blob(chunks, { type: 'audio/mpeg' });
-    return new File([blob], `${videoId}.mp3`, { type: 'audio/mpeg' });
+    const blob = new Blob(chunks, { type: contentType });
+    return new File([blob], `${videoId}.mp3`, { type: contentType });
 }
 
 export async function checkAPIHealth() {
