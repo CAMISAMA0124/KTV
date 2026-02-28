@@ -144,7 +144,7 @@ export async function extractAudio(url, onProgress) {
     await new Promise((resolve, reject) => {
         const args = [
             url,
-            '-f', 'ba/b', // 抓取最相容的音訊
+            '-f', 'ba[ext=m4a]/b[ext=mp4]/ba/b', // 優先抓取相容性最高的 m4a
             '--no-playlist',
             '--no-warnings',
             '--output', tmpPath,
@@ -161,7 +161,13 @@ export async function extractAudio(url, onProgress) {
             }
         });
 
-        process.on('close', resolve);
+        process.on('close', (code) => {
+            if (code !== 0) {
+                reject(new Error(`yt-dlp 執行失敗，錯誤碼: ${code}`));
+            } else {
+                resolve();
+            }
+        });
         process.on('error', reject);
     });
 

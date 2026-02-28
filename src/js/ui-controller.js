@@ -500,7 +500,19 @@ export class UIController {
                 this.$videoOverlay.classList.remove('active');
             }
         } else {
-            this.$resultPanel.style.display = 'none';
+            this.$resultPanel.style.display = 'flex';
+            this.$resultPanel.classList.add('visible');
+
+            const videoWrap = this.$resultPanel.querySelector('.video-container-wrap');
+            if (videoWrap) videoWrap.style.display = 'none';
+
+            const guideBtn = document.getElementById('guide-toggle');
+            if (guideBtn) guideBtn.style.display = 'none';
+
+            const pitchGroup = this.$resultPanel.querySelector('.pitch-group');
+            if (pitchGroup) pitchGroup.style.display = 'none';
+
+            this.setStatus('✅ 本地音檔處理完成！可點擊下方按鈕保存音軌。');
         }
     }
 

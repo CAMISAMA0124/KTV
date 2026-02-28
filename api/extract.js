@@ -61,6 +61,8 @@ export default async function handler(req, res) {
     let baseArgs = [
         url,
         '--no-cache-dir',
+        '--no-warnings',
+        '--compat-options', 'no-javascript-youtube-extraction',
         '--extractor-args', 'youtube:player-client=android_music,ios'
     ];
 

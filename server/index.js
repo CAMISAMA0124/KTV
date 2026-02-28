@@ -155,10 +155,12 @@ function isYouTubeURL(url) {
 }
 
 // ── Fallback 路由 (支援 SPA 重新整理) ────────────────────────
-app.get('/(.*)', (req, res) => {
+app.use((req, res, next) => {
     // 如果不是 API 請求，則返回 index.html
     if (!req.path.startsWith('/api')) {
         res.sendFile(join(__dirname, '../dist/index.html'));
+    } else {
+        next();
     }
 });
 
