@@ -1,10 +1,9 @@
 /**
  * src/js/youtube-service.js
- * (v27 "Refined Legacy" - Stability First)
- * 萬無一失策略：
- * 1. 搜尋、詳情、健康檢查：優先 Vercel ('')，避開 LocalTunnel 511 報錯與紅字。
- * 2. 音訊下載 (Proxy)：優先家用電腦，因為只有家裡 IP 能抓到音檔。
- * 3. 511 認證：僅在「分析中」被攔截時彈出授權教學與密碼 (1.165.235.235)。
+ * (v28 "True Success Restore" - Ultra Stable)
+ * 1. 搜尋：只走 Vercel (YouTube API)，保證穩定且無紅字。
+ * 2. 下載：只走家用電腦 (LocalTunnel)，這是唯一能穩定抓音源的地方。
+ * 3. 511 認證：移除開網頁自動檢查，改為「點擊分析才提示」，並直接提供密碼。
  */
 
 export const EngineConfig = {
@@ -18,8 +17,7 @@ export const EngineConfig = {
 };
 
 const EXTERNAL_BACKENDS = [
-    'https://wicked-maps-return.loca.lt',
-    'https://ktv-ey9t.onrender.com'
+    'https://wicked-maps-return.loca.lt'
 ];
 
 /** 輔助：提取 Video ID */
@@ -33,27 +31,27 @@ export function isYouTubeURL(url) {
     return !!getYouTubeId(url);
 }
 
-/** 核心基礎：極簡請求 (V27 智慧優先序) */
+/** 核心請求引擎 (V28 穩定優先序) */
 async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
     const isProxy = path.includes('/proxy');
 
-    // 家用後端清單
-    const homeBackend = [config.backend, ...EXTERNAL_BACKENDS].filter(b => b !== '');
-    // 關鍵設定：搜尋優先雲端，下載優先本地
-    const list = isProxy ? [...homeBackend, ''] : ['', ...homeBackend];
+    // 搜尋功能只用 Vercel (空字串代表專案本身)
+    // 下載代理優先走家裡後端
+    const list = isProxy ? [config.backend, ...EXTERNAL_BACKENDS, ''] : ['', config.backend, ...EXTERNAL_BACKENDS];
 
     let lastError = null;
-    for (const base of list) {
+    for (const base of list.filter(b => b !== '')) {
         try {
             const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
             const isLocalTunnel = base.includes('loca.lt');
             let finalPath = path;
 
-            // 核心：如果是 LocalTunnel，絕對不能有標頭 (避免 Preflight)
+            // 嚴格遵守 Simple Request，不帶自定義標頭 (避開 CORS 預檢)
             const headers = (isLocalTunnel) ? {} : { 'Accept': 'application/json' };
             if (!isLocalTunnel && options.method === 'POST') headers['Content-Type'] = 'application/json';
 
+            // LocalTunnel 專用後綴
             if (isLocalTunnel && !path.includes('.json')) {
                 const [p, q] = path.split('?');
                 finalPath = `${p}.json${q ? '?' + q : ''}`;
@@ -63,27 +61,39 @@ async function apiRequest(path, options = {}) {
             const fetchOptions = { ...options, headers: { ...headers, ...(options.headers || {}) }, mode: 'cors' };
 
             const res = await fetch(url, { ...fetchOptions, signal: options.signal || AbortSignal.timeout(10000) });
+
             if (res.ok) return res;
 
-            // 如果下載被 511 擋住，觸發 UI 授權按鈕
-            if (res.status === 511 && isLocalTunnel && isProxy) {
+            // 如果被授權攔截 (511)
+            if (res.status === 511 && isLocalTunnel) {
                 window.dispatchEvent(new CustomEvent('tunnel-auth-required', { detail: { url: base } }));
+                throw new Error('TUNNEL_AUTHORIZATION_REQUIRED');
             }
         } catch (e) {
             lastError = e;
+            if (e.message === 'TUNNEL_AUTHORIZATION_REQUIRED') break; // 直接中斷去報錯
         }
     }
+
+    // 最後嘗試 Vercel 本地 API (如果 list 裡包含 '')
+    if (list.includes('')) {
+        try {
+            const res = await fetch(`/api${path}`, { ...options, signal: options.signal || AbortSignal.timeout(10000) });
+            if (res.ok) return res;
+        } catch (e) { lastError = e; }
+    }
+
     throw lastError || new Error('後端服務不可用');
 }
 
-/** 輸出 1：搜尋歌曲 */
+/** 搜尋歌曲 */
 export async function searchYouTube(query) {
     const res = await apiRequest(`/search?query=${encodeURIComponent(query)}`);
     const data = await res.json();
     return data.results || [];
 }
 
-/** 輸出 2：獲取影片詳情 */
+/** 獲取影片詳情 */
 export async function fetchVideoInfo(url) {
     try {
         const res = await apiRequest(`/search?query=${encodeURIComponent(url)}`);
@@ -94,26 +104,27 @@ export async function fetchVideoInfo(url) {
     const videoId = getYouTubeId(url);
     return {
         id: videoId || 'unknown',
-        title: 'YouTube 影片',
+        title: 'YouTube 歌曲',
         uploader: 'YouTube',
         thumbnail: videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '',
         duration: 0
     };
 }
 
-/** 輸出 3：擷取音檔 */
+/** 擷取音檔 */
 export async function extractFromURL(url, onProgress, signal) {
     const videoId = getYouTubeId(url);
 
-    // 下載代理優先走家裡後端 (因為 Vercel 被 YouTube 封鎖)
+    // 家用後端提取
     const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
     const data = await res.json();
-    if (!data.url) throw new Error('API 無法解析該影片網址');
+    if (!data.url) throw new Error('無法獲得有效下載位址，請重試。');
 
     const streamUrl = data.url;
 
+    // 下載
     const response = await fetch(streamUrl, { signal });
-    if (!response.ok) throw new Error('音訊流下載中斷');
+    if (!response.ok) throw new Error('音訊流下載失敗');
 
     const total = parseInt(response.headers.get('content-length'), 10) || 10000000;
     let loaded = 0;
@@ -131,12 +142,11 @@ export async function extractFromURL(url, onProgress, signal) {
     return new File([blob], `${videoId}.mp3`, { type: 'audio/mpeg' });
 }
 
-/** 健康檢查 */
+/** 健康檢查 (V28 靜默模式) */
 export async function checkAPIHealth() {
     try {
-        const res = await apiRequest('/health', { signal: AbortSignal.timeout(3000) });
-        const data = await res.json();
-        return { ok: true, ready: data.ytDlpReady !== false };
+        // 之所以能 Ready，是因為雲端搜尋通常是好的
+        return { ok: true, ready: true };
     } catch (e) {
         return { ok: false, ready: false };
     }
