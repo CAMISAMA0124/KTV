@@ -3,10 +3,13 @@ import yts from 'yt-search';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Bypass-Tunnel-Reminder');
 
-    const { url } = req.body || {};
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
+    // Support GET (query) and POST (body)
+    const { url } = (req.method === 'GET' ? req.query : req.body) || {};
     if (!url) return res.status(400).json({ error: 'Missing url' });
 
     try {

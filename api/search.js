@@ -15,13 +15,13 @@ function isoToSecs(iso) {
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Bypass-Tunnel-Reminder');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { query } = req.body || {};
+    // Support GET (query) and POST (body)
+    const { query } = (req.method === 'GET' ? req.query : req.body) || {};
     if (!query) return res.status(400).json({ error: 'Missing query' });
 
     try {
