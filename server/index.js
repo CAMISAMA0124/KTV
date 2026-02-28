@@ -103,14 +103,15 @@ app.post('/api/info', async (req, res) => {
     }
 });
 
-// ── Cobalt Proxy (Solve Browser CORS) ────────────────────────
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, X-Youtube-Cookies');
-    if (req.method === 'OPTIONS') return res.sendStatus(200);
-    next();
-});
+// ── Super-Permissive CORS (v16) ─────────────────────────────
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Bypass-Tunnel-Reminder', 'Accept', 'X-Youtube-Cookies'],
+    exposedHeaders: ['Content-Length', 'Content-Type']
+}));
+
+
 
 app.all('/api/proxy', async (req, res) => {
     const { url, aFormat = 'mp3', isAudioOnly = true } = (req.method === 'GET' ? req.query : req.body) || {};
