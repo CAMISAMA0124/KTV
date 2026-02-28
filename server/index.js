@@ -8,6 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import { initYtDlp, extractAudio, getVideoInfo, searchVideos } from './youtube-handler.js';
 import ytdl from '@distube/ytdl-core';
+import play from 'play-dl';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -110,13 +111,27 @@ app.all(['/api/proxy', '/api/proxy.json'], async (req, res) => {
     const { url, aFormat = 'mp3', isAudioOnly = true } = (req.method === 'GET' ? req.query : req.body) || {};
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
-    console.log(`[Local Proxy v19] Request: ${url}`);
+    console.log(`[Local Proxy v19.3] Request: ${url}`);
     const videoIdMatch = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/)([^"&?\/\s]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
-    // ── 策略 1: 本地 ytdl-core 提取 (最強大，使用用戶家用 IP) ──
+    // ── 策略 1: 本地 play-dl 提取 (最強大，使用用戶家用 IP) ──
     try {
-        console.log(`[Local Proxy] Strategy 1: ytdl-core extraction...`);
+        console.log(`[Local Proxy] Strategy 1: play-dl extraction...`);
+        const info = await play.video_info(url);
+        // 抓取音檔格式
+        const format = info.format.find(f => f.mimeType && f.mimeType.includes('audio/mp4')) || info.format.find(f => f.hasAudio && !f.hasVideo);
+        if (format && format.url) {
+            console.log(`[Local Proxy] play-dl success!`);
+            return res.json({ url: format.url });
+        }
+    } catch (e) {
+        console.warn(`[Local Proxy] play-dl failed: ${e.message}`);
+    }
+
+    // ── 策略 2: 本地 ytdl-core 備援 ──
+    try {
+        console.log(`[Local Proxy] Strategy 2: ytdl-core extraction...`);
         const info = await ytdl.getInfo(url);
         const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
         if (format && format.url) {

@@ -21,21 +21,14 @@ export default async function handler(req, res) {
 
     // ── 策略 1: Vercel 原生 JS 提取 (play-dl) ──
     try {
-        console.log(`[v19 Proxy] Strategy 1: play-dl extracting... ${cleanUrl}`);
+        console.log(`[v19.4 Proxy] Trying play-dl...`);
         const info = await play.video_info(cleanUrl);
-        if (info && info.format) {
-            // 尋找 M4A 音訊，或者如果沒有就拿任何純音軌
-            let bestFormat = info.format.find(f => f.mimeType && f.mimeType.includes('audio/mp4'));
-            if (!bestFormat) {
-                bestFormat = info.format.find(f => f.hasAudio && !f.hasVideo);
-            }
-            if (bestFormat && bestFormat.url) {
-                console.log(`[v19 Proxy] play-dl success!`);
-                return res.status(200).json({ url: bestFormat.url });
-            }
+        const format = info.format.find(f => f.mimeType && f.mimeType.includes('audio/mp4')) || info.format.find(f => f.hasAudio && !f.hasVideo);
+        if (format && format.url) {
+            return res.status(200).json({ url: format.url });
         }
     } catch (e) {
-        console.warn(`[v19 Proxy] play-dl failed: ${e.message}`);
+        console.warn(`[v19.4 Proxy] play-dl fail: ${e.message}`);
     }
 
     // ── 策略 2: 嚴格偽裝的 Cobalt (完全偽裝來源) ──
