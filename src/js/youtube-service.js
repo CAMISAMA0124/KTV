@@ -121,54 +121,78 @@ export async function extractFromURL(url, onProgress, signal) {
     ];
 
     const PROXIES = [
-        (api) => `https://corsproxy.io/?${encodeURIComponent(api)}`,
         (api) => `https://api.allorigins.win/raw?url=${encodeURIComponent(api)}`,
+        (api) => `https://corsproxy.io/?${encodeURIComponent(api)}`,
     ];
 
     let lastError = null;
 
     for (const api of COBALT_INSTANCES) {
-        const tryFetch = async (targetUrl) => {
-            console.log(`[Extract] Trying: ${targetUrl}`);
-            const res = await fetch(targetUrl, {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, aFormat: 'mp3', isAudioOnly: true, vQuality: '720' }),
-                signal: AbortSignal.timeout(8000)
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // 多種請求方式嘗試: POST (Direct), POST (Proxy), GET (Proxy - 某些代理僅支援 GET)
+        const tryCall = async (method, targetUrl, isProxy = false) => {
+            console.log(`[Extract] Trying ${method} on ${targetUrl}`);
+            const options = {
+                method: method,
+                headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(9000)
+            };
+
+            if (method === 'POST') {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify({ url, aFormat: 'mp3', isAudioOnly: true, vQuality: '720' });
+            }
+
+            const res = await fetch(targetUrl, options);
+            if (!res.ok) throw new Error(`Status ${res.status}`);
             return await res.json();
         };
 
         try {
             let data;
+            // 優先路徑 A: 直接 POST
             try {
-                data = await tryFetch(api);
+                data = await tryCall('POST', api);
             } catch (e) {
-                console.warn(`[Extract] Direct ${api} failed, trying proxy...`);
-                data = await tryFetch(PROXIES[0](api));
+                console.warn(`[Extract] Direct POST to ${api} failed: ${e.message}. Trying AllOrigins...`);
+                // 優先路徑 B: 透過 AllOrigins (CORS 最寬鬆)
+                try {
+                    data = await tryCall('POST', PROXIES[0](api), true);
+                } catch {
+                    console.warn(`[Extract] AllOrigins failed. Trying CorsProxy.io (GET)...`);
+                    // 最後手段：某些 Proxy 自帶把 POST 轉成特殊參數的能力，或我們改用支援 GET 的 Instance (不推薦但可行)
+                    // 這裡我們先嘗試 GET 看看該 API 是否支援 (部分 Cobalt 實例可能支援 GET /api/json?url=...)
+                    const getUrl = `${api}?url=${encodeURIComponent(url)}&isAudioOnly=true`;
+                    data = await tryCall('GET', PROXIES[1](getUrl), true);
+                }
             }
 
             if (data && data.url) {
-                console.log('[Extract] Success! Stream found, starting download...');
+                console.log('[Extract] JSON Success! Fetching stream...');
                 onProgress?.(30);
 
-                try {
-                    const streamRes = await fetch(data.url, { signal });
-                    if (streamRes.ok) return await _readStreamToFile(streamRes, 'audio.mp3', onProgress);
-                    throw new Error('Stream response not ok');
-                } catch (err) {
-                    console.warn('[Extract] Direct stream fetch failed, trying AllOrigins...');
-                    const proxiedStreamRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(data.url)}`, { signal });
-                    if (proxiedStreamRes.ok) return await _readStreamToFile(proxiedStreamRes, 'audio.mp3', onProgress);
-                    throw err;
-                }
+                // 3. 獲取媒體 Blob (防護最嚴密的地方)
+                const streamFetch = async (sUrl) => {
+                    // 嘗試 A: 直連
+                    try {
+                        const r = await fetch(sUrl, { signal });
+                        if (r.ok) return r;
+                    } catch { }
+                    // 嘗試 B: AllOrigins Raw
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(sUrl)}`;
+                    const r2 = await fetch(proxyUrl, { signal });
+                    if (r2.ok) return r2;
+                    throw new Error('Media Proxy Failed');
+                };
+
+                const streamRes = await streamFetch(data.url);
+                return await _readStreamToFile(streamRes, 'audio.mp3', onProgress);
             }
         } catch (e) {
             lastError = e;
-            console.warn(`[Extract] Instance ${api} failed: ${e.message}`);
+            console.warn(`[Extract] Instance ${api} cycle failed: ${e.message}`);
         }
     }
+
 
     // 備援：後端代理
     try {
