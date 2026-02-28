@@ -12,11 +12,20 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "axios": "^1.13.6",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "demucs-web": "^1.0.2",
     "express": "^5.2.1",
+    "form-data": "^4.0.5",
     "onnxruntime-web": "^1.20.1",
-    "yt-search": "^2.13.1"
+    "play-dl": "^1.9.7",
+    "playwright": "^1.58.2",
+    "youtube-ext": "^1.1.25",
+    "yt-dlp-exec": "^1.0.2",
+    "yt-search": "^2.13.1",
+    "ytdl-core": "npm:@distube/ytdl-core@^4.16.12"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

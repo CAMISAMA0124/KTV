@@ -71,41 +71,23 @@ export async function fetchVideoInfo(url) {
     return data.info;
 }
 
-/** 【v18 核心】流暢音檔擷取 */
+/** 【v19 核心】流暢音檔擷取 (依賴 Vercel Backend) */
 export async function extractFromURL(url, onProgress, signal) {
     onProgress?.(5);
     const videoId = url.match(/(?:v=|\/embed\/|https:\/\/youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
     if (!videoId) throw new Error('無法解析 YouTube 網址');
 
-    // ── 策略 1: 瀏覽器直連 Cobalt (不經由伺服器) ──
-    const COBALT_APIS = ['https://api.cobalt.tools/api/json', 'https://co.wuk.sh/api/json'];
-    for (const api of COBALT_APIS) {
-        try {
-            console.log(`[v18] Strategy 1: Direct Client Cobalt -> ${api}`);
-            const res = await fetch(api, {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, aFormat: 'mp3', isAudioOnly: true }),
-                signal: AbortSignal.timeout(10000)
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.url) return await _smartMediaFetch(data.url, onProgress, signal);
-            }
-        } catch (e) { console.warn(`[v18] Direct Cobalt ${api} fail: ${e.message}`); }
-    }
-
-    // ── 策略 2: 後端傳接代理 (Vercel Serverless / LocalTunnel) ──
+    // ── 策略 1: 直接透過 V19 Backend Proxy (play-dl / Fallbacks) ──
     try {
-        console.log('[v18] Strategy 2: Backend/Tunnel Proxy...');
+        console.log('[v19] Strategy 1: Backend/Tunnel Proxy...');
         const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`, { method: 'GET', signal });
         const data = await res.json();
         if (data.url) return await _smartMediaFetch(data.url, onProgress, signal);
-    } catch (e) { console.warn('[v18] Strategy 2 fail:', e.message); }
+    } catch (e) { console.warn('[v19] Strategy 1 Backend Proxy fail:', e.message); }
 
-    // ── 策略 3: 使用 AllOrigins 獲取 Piped/Invidious JSON ──
+    // ── 策略 2: 使用 CORS 代理打 Invidious (備援) ──
     try {
-        console.log('[v18] Strategy 3: Mirror via CORS Proxy...');
+        console.log('[v19] Strategy 2: Mirror via CORS Proxy...');
         const pUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://inv.vern.cc/api/v1/videos/${videoId}`)}`;
         const res = await fetch(pUrl, { signal });
         const raw = await res.json();
@@ -125,12 +107,23 @@ async function _smartMediaFetch(streamUrl, onProgress, signal) {
         if (res.ok) return await _readStreamToFile(res, 'audio.m4a', onProgress);
     } catch { }
 
-    // 次等策略：透過 AllOrigins Raw 下載 (支援跨域)
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(streamUrl)}`;
-    const res2 = await fetch(proxyUrl, { signal });
-    if (res2.ok) return await _readStreamToFile(res2, 'audio.m4a', onProgress);
+    // 次等策略：透過 CORS 代理下載 (支援跨域，多組備援)
+    const PROXIES = [
+        `https://corsproxy.io/?url=${encodeURIComponent(streamUrl)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(streamUrl)}`
+    ];
 
-    throw new Error('流媒體獲取失敗');
+    for (const proxyUrl of PROXIES) {
+        try {
+            console.log(`[Media Fetch] Trying CORS Proxy: ${proxyUrl}`);
+            const res2 = await fetch(proxyUrl, { signal: AbortSignal.timeout(30000) });
+            if (res2.ok) return await _readStreamToFile(res2, 'audio.m4a', onProgress);
+        } catch (e) {
+            console.warn(`[Media Fetch] Proxy failed: ${e.message}`);
+        }
+    }
+
+    throw new Error('擷取失敗: 串流下載被阻擋，您可以試試【複製網址】手動下載後上傳。');
 }
 
 async function _readStreamToFile(response, defaultName, onProgress) {
