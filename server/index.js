@@ -112,11 +112,11 @@ app.use((req, res, next) => {
     next();
 });
 
-app.post('/api/proxy', async (req, res) => {
-    const { url, aFormat = 'mp3', isAudioOnly = true } = req.body;
+app.all('/api/proxy', async (req, res) => {
+    const { url, aFormat = 'mp3', isAudioOnly = true } = (req.method === 'GET' ? req.query : req.body) || {};
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
-    console.log(`[Local Proxy] Processing: ${url}`);
+    console.log(`[Local Proxy] Mode: ${req.method} | URL: ${url}`);
 
     // 多組鏡像源嘗試
     const targets = [
@@ -149,6 +149,7 @@ app.post('/api/proxy', async (req, res) => {
     }
     res.status(502).json({ error: 'LOCAL_PROXY_ALL_FAILED' });
 });
+
 
 
 
