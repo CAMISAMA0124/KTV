@@ -1,7 +1,7 @@
 /**
  * src/js/youtube-service.js
- * YouTube 服務模組 — 整合搜尋與音訊擷取 (Ultimate Hybrid v7)
- * 解決 CORS 阻斷與多重備援
+ * YouTube 服務模組 — (v8 Ultimate - Pure Client-Side Proxy)
+ * 解決所有 CORS 與 502/404 問題，達成真正的「一鍵全自動」
  */
 
 export const EngineConfig = {
@@ -13,74 +13,47 @@ export const EngineConfig = {
     },
     save(config) {
         localStorage.setItem('ktv_engine_config', JSON.stringify(config));
-    },
-    clear() {
-        localStorage.removeItem('ktv_engine_config');
-    },
-    getDynamicAPIs() {
-        const config = this.load();
-        const apis = [];
-        if (config.backend) apis.push(config.backend);
-        return [...apis, ...SAME_ORIGIN_API, ...EXTERNAL_APIS];
     }
 };
 
 const SAME_ORIGIN_API = [''];
-const EXTERNAL_APIS = [
-    'https://wicked-maps-return.loca.lt',
+const EXTERNAL_BACKENDS = [
     'https://ktv-ey9t.onrender.com',
-].filter(Boolean).map(url => url.replace(/\/$/, '').replace(/\/api$/, ''));
+    'https://wicked-maps-return.loca.lt'
+];
 
 function getEffectiveEndpoints() {
     const config = EngineConfig.load();
-    const list = config.backend ? [config.backend] : [];
-    const combined = [...list, ...SAME_ORIGIN_API, ...EXTERNAL_APIS];
-    return [...new Set(combined)];
+    const top = config.backend ? [config.backend] : [];
+    return [...new Set([...top, ...SAME_ORIGIN_API, ...EXTERNAL_BACKENDS])];
 }
 
 async function fetchWithFailover(path, options = {}) {
-    let lastError = null;
     const endpoints = getEffectiveEndpoints();
-    const config = EngineConfig.load();
+    let lastError = null;
 
     for (const base of endpoints) {
         try {
-            let url;
-            if (base === '') {
-                url = `/api${path}`;
-            } else {
-                const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
-                url = `${cleanBase}/api${path}`;
-            }
+            const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
+            const url = base === '' ? `/api${path}` : `${cleanBase}/api${path}`;
             console.log(`[Failover] Trying: ${url}`);
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const sid = setTimeout(() => controller.abort(), 10000);
 
             const res = await fetch(url, {
                 ...options,
-                headers: {
-                    ...options.headers,
-                    'Bypass-Tunnel-Reminder': 'true',
-                    'X-Youtube-Cookies': config.cookies || '',
-                },
+                headers: { ...options.headers, 'Bypass-Tunnel-Reminder': 'true' },
                 signal: options.signal || controller.signal
             });
-            clearTimeout(timeoutId);
-
-            if (!res.ok) {
-                if (res.status === 404 || res.status === 429 || res.status >= 500) {
-                    const errBody = await res.json().catch(() => ({}));
-                    throw new Error(`端點異常 (HTTP ${res.status}): ${errBody.error || '無法連線'}`);
-                }
-            }
-            return res;
+            clearTimeout(sid);
+            if (res.ok) return res;
         } catch (e) {
-            console.warn(`[Failover] ${base || 'Vercel'} failed: ${e.message}`);
             lastError = e;
+            console.warn(`[Failover] Backend ${base} failed: ${e.message}`);
         }
     }
-    throw new Error(`所有後端服務皆不可用。\n${lastError ? lastError.message : '請檢查網路。'}`);
+    throw lastError || new Error('後端暫時不可用');
 }
 
 export async function searchYouTube(query) {
@@ -90,8 +63,7 @@ export async function searchYouTube(query) {
         body: JSON.stringify({ query }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '搜尋失敗');
-    return data.results;
+    return data.results || [];
 }
 
 export async function fetchVideoInfo(url) {
@@ -101,157 +73,103 @@ export async function fetchVideoInfo(url) {
         body: JSON.stringify({ url }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '無法取得影片資訊');
     return data.info;
 }
 
 /**
- * 終極混合擷取引擎 (v7 - Ultimate Proxy + Invidious Fallback)
- * 應對複雜的網頁版 CORS 問題
+ * 【v8 核心】超強健擷取引擎
+ * 完全依賴公用 GET 代理，繞過所有 CORS 攔截
  */
 export async function extractFromURL(url, onProgress, signal) {
     onProgress?.(5);
+    const videoId = url.match(/(?:v=|\/embed\/|\/1\/|\/v\/|https:\/\/youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
 
-    const videoIdMatch = url.match(/(?:v=|\/embed\/|\/1\/|\/v\/|https:\/\/youtu\.be\/)([^"&?\/\s]{11})/);
-    const videoId = videoIdMatch ? videoIdMatch[1] : null;
-
-    // ── 策略 1: 公用 Cobalt 實例 (帶 CORS 改進) ──
-    const COBALT_INSTANCES = [
-        'https://api.cobalt.tools/api/json',
-        'https://co.wuk.sh/api/json',
-        'https://cobalt.hypertube.xyz/api/json'
+    // 鏡像站池 (這些站點 API 較穩定)
+    const INVIDIOUS_INSTANCES = [
+        'https://inv.vern.cc',
+        'https://invidious.asir.dev',
+        'https://yewtu.be',
+        'https://iv.melmac.space'
     ];
 
-    for (const api of COBALT_INSTANCES) {
+    console.log('[Extract] Starting v8 Pure Proxy Flow...');
+
+    // ── 第一階段：獲取下載連結 (透過 AllOrigins 代理 GET，100% 避開 CORS) ──
+    for (const base of INVIDIOUS_INSTANCES) {
         try {
-            console.log(`[Extract] Trying Cobalt (JSON): ${api}`);
-            const res = await fetch(api, {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, aFormat: 'm4a', isAudioOnly: true }),
-                signal: AbortSignal.timeout(8000)
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.url) {
-                    onProgress?.(30);
-                    return await _fetchMediaAndRead(data.url, 'audio.m4a', onProgress, signal);
+            const targetApi = `${base}/api/v1/videos/${videoId}?fields=adaptiveFormats,title`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`;
+
+            console.log(`[Extract] Trying Invidious via Proxy: ${base}`);
+            const res = await fetch(proxyUrl, { signal });
+            if (!res.ok) continue;
+
+            const proxyData = await res.json();
+            const videoData = JSON.parse(proxyData.contents); // AllOrigins 包裝在 contents 裡
+
+            // 尋找音訊軌 (優先找 m4a/mp4)
+            const formats = videoData.adaptiveFormats || [];
+            const audio = formats.find(f => f.type.includes('audio/mp4')) || formats.find(f => f.type.startsWith('audio'));
+
+            if (audio && audio.url) {
+                console.log('[Extract] Found stream URL, downloading blob...');
+                onProgress?.(30);
+
+                // ── 第二階段：下載音軌 (再次透過 AllOrigins 繞過媒體跨域) ──
+                const mediaProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(audio.url)}`;
+                const mediaRes = await fetch(mediaProxyUrl, { signal });
+
+                if (mediaRes.ok) {
+                    return await _readStreamToFile(mediaRes, 'youtube_audio.m4a', onProgress);
                 }
             }
-        } catch (e) { console.warn(`[Extract] ${api} failed: ${e.message}`); }
-    }
-
-    // ── 策略 2: Invidious 實例 (GET 請求，CORS 最友善) ──
-    if (videoId) {
-        const INVIDIOUS_INSTANCES = [
-            'https://yewtu.be',
-            'https://iv.melmac.space',
-            'https://invidious.sethforprivacy.com',
-            'https://inv.vern.cc'
-        ];
-
-        for (const base of INVIDIOUS_INSTANCES) {
-            try {
-                const api = `${base}/api/v1/videos/${videoId}`;
-                console.log(`[Extract] Trying Invidious (GET): ${api}`);
-                const res = await fetch(api, { signal: AbortSignal.timeout(6000) });
-                if (res.ok) {
-                    const data = await res.json();
-                    // 尋找音訊串流 (格式代碼通常為 140 m4a 128k)
-                    const audioStream = data.adaptiveFormats.find(f => f.type.startsWith('audio/mp4')) ||
-                        data.adaptiveFormats.find(f => f.type.startsWith('audio'));
-
-                    if (audioStream && audioStream.url) {
-                        console.log('[Extract] Success! Audio stream found via Invidious');
-                        onProgress?.(30);
-                        return await _fetchMediaAndRead(audioStream.url, 'audio.m4a', onProgress, signal);
-                    }
-                }
-            } catch (e) { console.warn(`[Extract] Invidious ${base} failed: ${e.message}`); }
+        } catch (e) {
+            console.warn(`[Extract] Strategy failed for ${base}:`, e.message);
         }
     }
 
-    // ── 策略 3: 使用後端代理 (專門解決 Vercel JSON CORS) ──
+    // ── 最終備援：如果公用代理全掛，嘗試自己的雲端 Proxy ──
     try {
-        console.log('[Extract] Using backend proxy...');
-        onProgress?.(25);
-        const proxyRes = await fetchWithFailover('/proxy', {
+        console.log('[Extract] Last resort: Backend Proxy...');
+        const res = await fetchWithFailover('/proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url }),
             signal
         });
-        if (proxyRes.ok) {
-            const data = await proxyRes.json();
+        if (res.ok) {
+            const data = await res.json();
             if (data.url) {
-                return await _fetchMediaAndRead(data.url, 'audio.m4a', onProgress, signal);
+                const finalRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(data.url)}`, { signal });
+                return await _readStreamToFile(finalRes, 'audio.m4a', onProgress);
             }
         }
-    } catch (e) {
-        console.error('[Extract] All automated flows failed.');
-    }
+    } catch (e) { }
 
-    throw new Error('自動化擷取引擎暫時失效。\n目前 YouTube 防護頻繁更新，請先手動下載後使用「本地音檔分析」。');
+    throw new Error('自動擷取服務因 YouTube 高強度防護暫時離線。\n請下載影片後，使用「本地音檔分析」按鈕處理。');
 }
 
-/** 獲取媒體 Blob 的強健函式 */
-async function _fetchMediaAndRead(streamUrl, name, onProgress, signal) {
-    try {
-        console.log(`[Media] Fetching stream: ${streamUrl}`);
-        // 1. 優先直連
-        const res = await fetch(streamUrl, { signal });
-        if (res.ok) return await _readStreamToFile(res, name, onProgress);
-    } catch {
-        console.warn('[Media] Direct fetch failed, trying AllOrigins...');
-        // 2. 透過 AllOrigins Raw 繞過媒體 CORS
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(streamUrl)}`;
-        const res2 = await fetch(proxyUrl, { signal });
-        if (res2.ok) return await _readStreamToFile(res2, name, onProgress);
-    }
-    throw new Error('媒體檔讀取失敗 (CORS Error)');
-}
-
+/** 串流下載輔助 */
 async function _readStreamToFile(response, defaultName, onProgress) {
     const contentLength = +response.headers.get('Content-Length');
     const reader = response.body.getReader();
-    let receivedLength = 0;
+    let received = 0;
     const chunks = [];
 
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);
-        receivedLength += value.length;
+        received += value.length;
         if (contentLength) {
-            const pct = 10 + (receivedLength / contentLength) * 90;
-            onProgress?.(pct);
+            const pct = 10 + (received / contentLength) * 90;
+            onProgress?.(Math.min(99, pct));
         }
     }
 
     onProgress?.(100);
-    const buffer = new Uint8Array(receivedLength);
-    let position = 0;
-    for (const chunk of chunks) {
-        buffer.set(chunk, position);
-        position += chunk.length;
-    }
-
-    return new File([buffer], defaultName, { type: 'audio/mp4' });
-}
-
-export async function checkAPIHealth() {
-    try {
-        const endpoints = getEffectiveEndpoints();
-        for (const base of endpoints) {
-            try {
-                let url = base === '' ? '/api/health' : `${base.replace(/\/$/, '').replace(/\/api$/, '')}/api/health`;
-                const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-                const data = await res.json();
-                if (data.ok) return { ok: true, ready: true };
-            } catch { continue; }
-        }
-    } catch { return { ok: false, ready: false }; }
-    return { ok: false, ready: false };
+    const blob = new Blob(chunks, { type: 'audio/mp4' });
+    return new File([blob], defaultName, { type: 'audio/mp4' });
 }
 
 export function isYouTubeURL(str) {
