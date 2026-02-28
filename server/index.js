@@ -7,6 +7,7 @@
 import express from 'express';
 import cors from 'cors';
 import { initYtDlp, extractAudio, getVideoInfo, searchVideos } from './youtube-handler.js';
+import ytdl from '@distube/ytdl-core';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -109,32 +110,52 @@ app.all(['/api/proxy', '/api/proxy.json'], async (req, res) => {
     const { url, aFormat = 'mp3', isAudioOnly = true } = (req.method === 'GET' ? req.query : req.body) || {};
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
-    console.log(`[Local Proxy] Mode: ${req.method} | URL: ${url}`);
+    console.log(`[Local Proxy v19] Request: ${url}`);
+    const videoIdMatch = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/)([^"&?\/\s]{11})/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
-    // 多組鏡像源嘗試
+    // ── 策略 1: 本地 ytdl-core 提取 (最強大，使用用戶家用 IP) ──
+    try {
+        console.log(`[Local Proxy] Strategy 1: ytdl-core extraction...`);
+        const info = await ytdl.getInfo(url);
+        const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+        if (format && format.url) {
+            console.log(`[Local Proxy] ytdl success!`);
+            return res.json({ url: format.url });
+        }
+    } catch (e) {
+        console.warn(`[Local Proxy] ytdl failed: ${e.message}`);
+    }
+
+    // ── 策略 2: 備援 Piped/Cobalt ──
     const targets = [
-        { type: 'piped', url: `https://pipedapi.kavin.rocks/streams/${url.match(/(?:v=|\/embed\/|https:\/\/youtu\.be\/)([^"&?\/\s]{11})/)?.[1]}` },
-        { type: 'cobalt', url: 'https://co.wuk.sh/api/json' },
+        { type: 'piped', url: videoId ? `https://pipedapi.lunar.icu/streams/${videoId}` : null },
         { type: 'cobalt', url: 'https://api.cobalt.tools/api/json' }
-    ];
+    ].filter(t => t.url);
 
     for (const t of targets) {
         try {
-            console.log(`[Local Proxy] Trying ${t.type}: ${t.url}`);
+            console.log(`[Local Proxy] Trying fallback ${t.type}: ${t.url}`);
             const options = t.type === 'cobalt' ? {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Origin': 'https://cobalt.tools',
+                    'Referer': 'https://cobalt.tools/'
+                },
                 body: JSON.stringify({ url, aFormat, isAudioOnly })
             } : { method: 'GET' };
 
-            const response = await fetch(t.url, { ...options, signal: AbortSignal.timeout(10000) });
+            const response = await fetch(t.url, { ...options, signal: AbortSignal.timeout(8000) });
             if (response.ok) {
                 const data = await response.json();
-                // 統一回傳格式
                 if (t.type === 'piped') {
-                    return res.json({ url: data.audioStreams?.[0]?.url });
+                    const stream = data.audioStreams?.[0]?.url || data.adaptiveFormats?.find(f => f.type.includes('audio/mp4'))?.url;
+                    if (stream) return res.json({ url: stream });
+                } else if (data.url) {
+                    return res.json({ url: data.url });
                 }
-                return res.json(data);
             }
         } catch (e) {
             console.warn(`[Local Proxy] ${t.type} failed: ${e.message}`);
