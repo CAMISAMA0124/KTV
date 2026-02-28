@@ -17,7 +17,7 @@ export const EngineConfig = {
 };
 
 const EXTERNAL_BACKENDS = [
-    'https://wicked-maps-return.loca.lt'
+    'https://latina-teacher-pgp-sierra.trycloudflare.com'
 ];
 
 /** 輔助：提取 Video ID */
