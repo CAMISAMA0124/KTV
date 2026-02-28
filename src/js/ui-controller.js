@@ -18,7 +18,9 @@ export class UIController {
         this._urlDebounceTimer = null;
         this._apiAvailable = false;
         this._selectedVideo = null;
+        this._selectedFile = null;
         this._currentPitch = 0;
+
 
         // DOM refs — Search
         this.$urlInput = document.getElementById('url-input');
@@ -142,6 +144,27 @@ export class UIController {
             window.location.reload();
         });
 
+        // Mode Cards
+        document.getElementById('mode-ai')?.addEventListener('click', () => {
+            if ('vibrate' in navigator) navigator.vibrate(10);
+            this.emit('mode-selected', 'ai', this._selectedFile, this._selectedVideo);
+        });
+        document.getElementById('mode-quick')?.addEventListener('click', () => {
+            if ('vibrate' in navigator) navigator.vibrate(10);
+            this.emit('mode-selected', 'quick', this._selectedFile, this._selectedVideo);
+        });
+
+        // Local File Input
+        document.getElementById('local-file-input')?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this._selectedFile = file;
+                this._selectedVideo = null;
+                this._showModeSelection();
+            }
+        });
+
+
         this.$clearCacheBtn?.addEventListener('click', async () => {
             if (confirm('⚠️ 確定要清除手機內所有暫存的歌曲與歷史紀錄嗎？')) {
                 await clearAllData();
@@ -206,23 +229,9 @@ export class UIController {
         });
 
         this.$extractBtn?.addEventListener('click', () => {
-            if (this._selectedVideo && this.state === UIState.IDLE) {
-                if (this._selectedFile) {
-                    // 已有本地音檔，直接顯示模式選擇
-                    this._showModeSelection();
-                } else {
-                    // 還沒下載，顯示下載指引
-                    this._showDownloadGuide(this._selectedVideo.url, this._selectedVideo.title);
-                }
+            if ((this._selectedVideo || this._selectedFile) && this.state === UIState.IDLE) {
+                this._showModeSelection();
             }
-        });
-
-        // Mode cards
-        document.getElementById('mode-quick')?.addEventListener('click', () => {
-            this.emit('mode-selected', 'quick', this._selectedFile, this._selectedVideo);
-        });
-        document.getElementById('mode-ai')?.addEventListener('click', () => {
-            this.emit('mode-selected', 'ai', this._selectedFile, this._selectedVideo);
         });
 
         this.$resetBtn?.addEventListener('click', () => this.reset());
@@ -278,14 +287,14 @@ export class UIController {
                     </div>
                 </div>
                 <button class="inline-extract-btn" style="
-                    display: flex; align-items: center; justify-content: center; gap: 4px;
+                    display: none; align-items: center; justify-content: center; gap: 4px;
                     padding: 10px 14px; border-radius: 14px; border: none;
                     background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%);
                     color: #fff; font-weight: 800; font-size: 0.8rem;
                     cursor: pointer; box-shadow: 0 4px 12px rgba(167, 139, 250, 0.2);
                     transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
-                " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(167, 139, 250, 0.3)'" onmouseout="this.style.transform='scale(1)'">
-                    📥 下載導引
+                ">
+                    🔥 開始分析
                 </button>
             </div>
         `).join('');
@@ -293,29 +302,23 @@ export class UIController {
         this.$searchResults.style.display = 'flex';
         this.$searchResults.style.flexDirection = 'column';
 
-
         this.$searchResults.querySelectorAll('.search-item').forEach((item, idx) => {
             const btn = item.querySelector('.inline-extract-btn');
 
             item.onclick = () => {
                 this._selectVideo(results[idx]);
-
-                // Hide the main preview and extract btn because we have the inline one!
                 this.$videoPreview.style.display = 'none';
                 this.$extractBtn.style.display = 'none';
 
-                // Reset all other items
                 this.$searchResults.querySelectorAll('.search-item').forEach(el => {
                     el.classList.remove('selected');
                     const b = el.querySelector('.inline-extract-btn');
                     if (b) b.style.display = 'none';
                 });
 
-                // Set this item as selected
                 item.classList.add('selected');
                 if (btn) {
                     btn.style.display = 'flex';
-                    btn.textContent = '🎵 複製網址並下載';
                     btn.disabled = false;
                 }
             };
@@ -323,8 +326,7 @@ export class UIController {
             if (btn) {
                 btn.onclick = (e) => {
                     e.stopPropagation();
-                    navigator.clipboard.writeText(results[idx].url).catch(() => { });
-                    this._showDownloadGuide(results[idx].url, results[idx].title);
+                    this._showModeSelection();
                 };
             }
         });
@@ -338,14 +340,14 @@ export class UIController {
         this.$videoDuration.textContent = `⏱️ ${this._formatSeconds(video.duration)}`;
         this.$videoPreview.style.display = 'flex';
         this.$extractBtn.style.display = 'inline-flex';
-        this.$extractBtn.textContent = '📥 下載並分析此歌曲';
+        this.$extractBtn.textContent = '🔥 分析並分離此歌曲 (AI/快速)';
         this.$extractBtn.disabled = false;
         this.$extractBtn.onclick = () => {
-            navigator.clipboard.writeText(video.url).catch(() => { });
-            this._showDownloadGuide(video.url, video.title);
+            this._showModeSelection();
         };
         this.emit('video-selected', video);
     }
+
 
     _formatSeconds(s) {
         const m = Math.floor(s / 60), sec = String(Math.floor(s % 60)).padStart(2, '0');
@@ -361,94 +363,17 @@ export class UIController {
     }
 
     _showModeSelection() {
-        document.getElementById('mode-selection').style.display = 'block';
-        this.$extractBtn.style.display = 'none';
-        // 顯示提示 hint
-        const hint = document.getElementById('mode-file-hint');
-        if (hint) {
-            hint.style.display = this._selectedFile ? 'block' : 'none';
+        const modeSection = document.getElementById('mode-selection');
+        if (modeSection) {
+            modeSection.style.display = 'block';
+            this.$extractBtn.style.display = 'none';
+            // 顯示提示 hint
+            const hint = document.getElementById('mode-file-hint');
+            if (hint) {
+                hint.style.display = this._selectedFile ? 'block' : 'none';
+            }
+            window.scrollTo({ top: modeSection.offsetTop - 20, behavior: 'smooth' });
         }
-        window.scrollTo({ top: document.getElementById('mode-selection').offsetTop - 20, behavior: 'smooth' });
-    }
-
-    /**
-     * 顯示下載指引 Modal — 整合多個下載工具
-     */
-    _showDownloadGuide(ytUrl, title) {
-        // 移除已存在的 modal
-        document.getElementById('dl-guide-modal')?.remove();
-
-        const tools = [
-            { name: 'cobalt.tools', url: 'https://cobalt.tools/', desc: '無廣告，隱私佳', icon: '🔵' },
-            { name: 'yt5s.in', url: 'https://yt5s.in/', desc: '支援 M4A/MP3', icon: '🟢' },
-            { name: 'ytmp3.cc', url: 'https://ytmp3.cc/', desc: 'MP3 高品質', icon: '🟡' },
-            { name: 'savefrom.net', url: 'https://savefrom.net/', desc: '老牌工具', icon: '🟠' },
-        ];
-
-        const modal = document.createElement('div');
-        modal.id = 'dl-guide-modal';
-        modal.style.cssText = `
-            position: fixed; inset: 0; z-index: 9999;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
-            display: flex; align-items: flex-end; justify-content: center;
-            padding: 20px;
-        `;
-        modal.innerHTML = `
-            <div style="
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                border: 1px solid rgba(167,139,250,0.3);
-                border-radius: 28px 28px 20px 20px;
-                padding: 28px 24px 32px;
-                width: 100%; max-width: 480px;
-                box-shadow: 0 -20px 60px rgba(167,139,250,0.2);
-            ">
-                <div style="text-align:center; margin-bottom: 20px;">
-                    <div style="font-size:2rem; margin-bottom:8px;">📥</div>
-                    <h3 style="font-size:1.1rem; font-weight:800; margin:0 0 6px;">下載音訊到手機</h3>
-                    <p style="font-size:0.8rem; color: rgba(255,255,255,0.5); margin:0;">
-                        YouTube 網址已複製到剪貼簿<br>請選擇下載工具，貼上網址並下載 <b>M4A</b> 或 <b>MP3</b> 格式
-                    </p>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
-                    ${tools.map(t => `
-                        <a href="${t.url}" target="_blank" rel="noopener" style="
-                            display:flex; align-items:center; gap:14px;
-                            background: rgba(255,255,255,0.06);
-                            border: 1px solid rgba(255,255,255,0.1);
-                            border-radius: 14px; padding: 14px 18px;
-                            text-decoration: none; color: #fff;
-                            transition: background 0.2s;
-                        " onmouseover="this.style.background='rgba(167,139,250,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
-                            <span style="font-size:1.5rem;">${t.icon}</span>
-                            <div>
-                                <div style="font-weight:700; font-size:0.95rem;">${t.name}</div>
-                                <div style="font-size:0.75rem; color:rgba(255,255,255,0.4);">${t.desc}</div>
-                            </div>
-                            <span style="margin-left:auto; opacity:0.4; font-size:1.1rem;">↗</span>
-                        </a>
-                    `).join('')}
-                </div>
-                <div style="
-                    background: rgba(167,139,250,0.1);
-                    border: 1px solid rgba(167,139,250,0.2);
-                    border-radius: 12px; padding: 12px 16px;
-                    font-size: 0.78rem; color: rgba(255,255,255,0.5);
-                    margin-bottom: 16px; line-height: 1.6;
-                ">
-                    💡 <b>下載完成後</b>：關閉外部視窗，點選上方<br>
-                    <b>📁 本地音檔分析</b> 上傳剛下載的音檔
-                </div>
-                <button id="dl-guide-close" style="
-                    width:100%; padding:14px; border-radius:14px; border:none;
-                    background: rgba(255,255,255,0.08); color:#fff;
-                    font-size:0.9rem; font-weight:600; cursor:pointer;
-                ">✕ 關閉</button>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-        document.getElementById('dl-guide-close').addEventListener('click', () => modal.remove());
     }
 
     setAPIStatus(ok, isWarming = false) {
@@ -716,11 +641,14 @@ export class UIController {
             const file = e.dataTransfer.files[0];
             if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) {
                 if ('vibrate' in navigator) navigator.vibrate([10, 30, 10]);
-                this.emit('file-selected', file);
+                this._selectedFile = file;
+                this._selectedVideo = null;
+                this._showModeSelection();
             } else {
                 this.showError('請拖放音訊或影片檔案 (.mp3, .m4a, .wav, .mp4)');
             }
         });
+
     }
 
     /**

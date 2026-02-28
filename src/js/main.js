@@ -137,14 +137,14 @@ async function processURL(url, mode = 'ai') {
     const signal = currentAbortController.signal;
 
     try {
-        ui.setStatus('📥 從 YouTube 擷取音訊 (這是目前唯一需要聯網的步驟)...');
-        ui.setState(UIState.LOADING_MODEL);
+        ui.setState(UIState.PROCESSING);
+        ui.setStatus('📥 從 YouTube 擷取音訊...');
 
         const metadata = currentMetadata || await fetchVideoInfo(url);
 
         const file = await extractFromURL(url, (pct) => {
-            ui.setProgress(pct * 0.2); // 擷取佔進度 20%
-            ui.setStatus(`📥 YouTube 下載中 ${Math.round(pct)}%...`);
+            ui.setProgress(pct * 0.1); // 擷取佔進度 10%
+            ui.setStatus(`📥 下載中 ${Math.round(pct)}%...`);
         }, signal);
 
         if (signal.aborted) return;
@@ -154,7 +154,7 @@ async function processURL(url, mode = 'ai') {
 
     } catch (e) {
         if (signal?.aborted) { ui.reset(); return; }
-        ui.showError(`擷取失敗: ${e.message}`);
+        ui.showError(`擷取失敗: ${e.message}。您可以試試【複製網址】手動下載後上傳。`);
     }
 }
 
@@ -168,17 +168,12 @@ ui.on('mode-selected', (mode, file, video) => {
     if (file) {
         processFile(file, video, mode);
     } else if (video) {
-        // 後端不再支援提取，引導用戶使用本地音檔
-        ui.showError('⚠️ 請先下載音檔後再分析！\n點擊【📥 前往下載】選擇下載工具，完成後點擊【📁 本地音檔分析】上傳。');
-        setTimeout(() => {
-            if (ui.state === 'error') {
-                ui.setState('idle');
-            }
-        }, 5000);
+        processURL(video.url, mode);
     } else {
         ui.showError('請先選擇一首歌曲或上傳本地音檔。');
     }
 });
+
 
 ui.on('url-search', async (query) => {
     try {

@@ -130,14 +130,49 @@ export async function fetchVideoInfo(url) {
 
 /**
  * 從 YouTube URL 擷取音訊 → 返回 File 物件
+ * 策略 (v3): 由用戶瀏覽器直接下載 (透過 Cobalt 公用 API 分流) 以避免伺服器 IP 被鎖
  * @param {string} url
- * @param {function} onProgress - (pct: 0-100) => void
+ * @param {function} onProgress
  * @param {AbortSignal} signal
  * @returns {Promise<File>}
  */
 export async function extractFromURL(url, onProgress, signal) {
     onProgress?.(5);
 
+    // ── 策略 1: 使用 Cobalt 公用 API (Client-side Direct) ──
+    try {
+        console.log('[Extract] Attempting client-side extraction via Cobalt...');
+        const cobaltResponse = await fetch('https://api.cobalt.tools/api/json', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: url,
+                isAudioOnly: true,
+                aFormat: 'mp3',
+                vQuality: '720'
+            }),
+            signal: AbortSignal.timeout(10000)
+        });
+
+        if (cobaltResponse.ok) {
+            const data = await cobaltResponse.json();
+            if (data.url) {
+                console.log('[Extract] Got stream URL from Cobalt, downloading...');
+                const streamRes = await fetch(data.url, { signal });
+                if (streamRes.ok) {
+                    return await _readStreamToFile(streamRes, 'youtube_audio.mp3', onProgress);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[Extract] Cobalt API failed or timeout, falling back...', e.message);
+    }
+
+    // ── 策略 2: 使用備援伺服器 (如果有配置) ──
+    onProgress?.(15);
     const res = await fetchWithFailover('/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -146,12 +181,16 @@ export async function extractFromURL(url, onProgress, signal) {
     });
 
     if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${res.status}`);
+        throw new Error('無法擷取音訊。請貼上網址或稍後再試，或下載後用本地音檔分析。');
     }
 
-    const contentLength = +res.headers.get('Content-Length');
-    const reader = res.body.getReader();
+    return await _readStreamToFile(res, 'youtube_audio.m4a', onProgress);
+}
+
+/** 串流讀取輔助函式 */
+async function _readStreamToFile(response, defaultName, onProgress) {
+    const contentLength = +response.headers.get('Content-Length');
+    const reader = response.body.getReader();
     let receivedLength = 0;
     const chunks = [];
 
@@ -161,13 +200,12 @@ export async function extractFromURL(url, onProgress, signal) {
         chunks.push(value);
         receivedLength += value.length;
         if (contentLength) {
-            // Mapping 5% - 95% total extraction progress
-            const pct = 5 + (receivedLength / contentLength) * 90;
+            const pct = 10 + (receivedLength / contentLength) * 85;
             onProgress?.(pct);
         }
     }
 
-    // Combine chunks
+    onProgress?.(100);
     const buffer = new Uint8Array(receivedLength);
     let position = 0;
     for (const chunk of chunks) {
@@ -175,14 +213,11 @@ export async function extractFromURL(url, onProgress, signal) {
         position += chunk.length;
     }
 
-    onProgress?.(100);
-
-    const titleHeader = res.headers.get('X-Video-Title');
-    const title = titleHeader ? decodeURIComponent(titleHeader) : 'youtube_audio';
-    const filename = `${title}.m4a`;
-
-    return new File([buffer], filename, { type: 'audio/mp4' });
+    const titleHeader = response.headers.get('X-Video-Title');
+    const title = titleHeader ? decodeURIComponent(titleHeader) : 'audio';
+    return new File([buffer], `${title}.${defaultName.split('.').pop()}`, { type: 'audio/mpeg' });
 }
+
 
 export async function checkAPIHealth() {
     try {

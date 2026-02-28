@@ -101,10 +101,15 @@ app.post('/api/info', async (req, res) => {
     }
 });
 
-// ── Extract audio (Disabled) ─────────────────────────────────
+// ── Extract audio (Redirected to Client) ──────────────────────
 app.post('/api/extract', async (req, res) => {
-    return res.status(403).json({ error: '線上提取已被停用。請使用前端的「複製網址」自行下載並上傳本機音軌。' });
+    return res.status(403).json({
+        error: 'BACKEND_DOWNLOAD_DISABLED',
+        message: '為確保服務穩定，下載功能已移至用戶端。請更新前端使用 Cobalt 模式。'
+    });
 });
+
+
 
 // ── Helpers ─────────────────────────────────────────────────
 function isYouTubeURL(url) {
