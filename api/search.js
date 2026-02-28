@@ -25,6 +25,31 @@ export default async function handler(req, res) {
     if (!query) return res.status(400).json({ error: 'Missing query' });
 
     try {
+        // 特別處理：如果輸入的是完整 YouTube 網址，直接擷取該影片
+        let videoIdMatch = query.match(/(?:v=|\/embed\/|\/1\/|\/v\/|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+
+        if (videoIdMatch) {
+            const vid = videoIdMatch[1];
+            const detailData = await ytApiGet(
+                `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${vid}&key=${YOUTUBE_API_KEY}`
+            );
+
+            if (detailData.items && detailData.items.length > 0) {
+                const item = detailData.items[0];
+                return res.json({
+                    results: [{
+                        id: item.id,
+                        url: `https://www.youtube.com/watch?v=${item.id}`,
+                        title: item.snippet.title,
+                        uploader: item.snippet.channelTitle,
+                        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+                        duration: isoToSecs(item.contentDetails?.duration) || 0
+                    }]
+                });
+            }
+        }
+
+        // 正常搜尋模式
         const q = encodeURIComponent(query);
         const searchData = await ytApiGet(
             `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&maxResults=5&type=video&relevanceLanguage=zh&regionCode=TW&key=${YOUTUBE_API_KEY}`

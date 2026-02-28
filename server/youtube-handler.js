@@ -30,7 +30,9 @@ function extractVideoId(url) {
  * 取得影片 metadata
  */
 export async function getVideoInfo(url) {
-    const videoId = extractVideoId(url);
+    let videoId = extractVideoId(url);
+    if (!videoId && /^[a-zA-Z0-9_-]{11}$/.test(url)) videoId = url;
+
     try {
         const result = await yts({ videoId: videoId || undefined, query: videoId ? undefined : url });
         if (result.title) {
@@ -54,6 +56,26 @@ export async function getVideoInfo(url) {
 // ── Search ───────────────────────────────────────────────────
 export async function searchVideos(query, limit = 8) {
     try {
+        let videoId = extractVideoId(query);
+        if (!videoId && /^[a-zA-Z0-9_-]{11}$/.test(query)) videoId = query;
+
+        if (videoId) {
+            // 這個網址包含具體的 Video ID，我們不要進行「關鍵字搜尋」，直接回傳該單一影片
+            console.log(`[Search] Direct URL detected, fetching info for ID: ${videoId}`);
+            const info = await getVideoInfo(videoId);
+            if (info && info.id) {
+                return [{
+                    id: info.id,
+                    url: `https://www.youtube.com/watch?v=${info.id}`,
+                    title: info.title,
+                    uploader: info.uploader,
+                    thumbnail: info.thumbnail,
+                    duration: info.duration
+                }];
+            }
+        }
+
+        // 關鍵字搜尋模式
         const r = await yts(query);
         return (r.videos || []).slice(0, limit).map(v => ({
             id: v.videoId,
