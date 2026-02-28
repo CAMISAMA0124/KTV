@@ -52,7 +52,9 @@ async function apiRequest(path, options = {}) {
             const isLocalTunnel = base.includes('loca.lt');
             let finalPath = path;
 
-            const headers = { 'Accept': 'application/json', 'Bypass-Tunnel-Reminder': 'true' };
+            // 核心：如果是 LocalTunnel，絕對不能有自定義標頭 (避免 Preflight)
+            const headers = { 'Accept': 'application/json' };
+
             if (isLocalTunnel && !path.includes('.json')) {
                 const [p, q] = path.split('?');
                 finalPath = `${p}.json${q ? '?' + q : ''}`;
@@ -61,7 +63,11 @@ async function apiRequest(path, options = {}) {
             const url = base === '' ? `/api${finalPath}` : `${cleanBase}/api${finalPath}`;
             if (options.method === 'POST') headers['Content-Type'] = 'application/json';
 
-            const res = await fetch(url, { ...options, headers: { ...headers, ...(options.headers || {}) }, mode: 'cors' });
+            const fetchOptions = { ...options, headers: { ...headers, ...(options.headers || {}) }, mode: 'cors' };
+            // 移除 GET 請求中的 Content-Type 避免觸發 Preflight
+            if (!options.method || options.method === 'GET') delete fetchOptions.headers['Content-Type'];
+
+            const res = await fetch(url, { ...fetchOptions, signal: AbortSignal.timeout(10000) });
             if (res.ok) return res;
         } catch (e) { lastError = e; }
     }
