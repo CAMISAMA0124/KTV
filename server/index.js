@@ -104,7 +104,8 @@ app.post('/api/info', async (req, res) => {
 // ── Cobalt Proxy (Solve Browser CORS) ────────────────────────
 // This allows the browser to call Cobalt via our backend, bypassing CORS.
 // Since it's a small JSON request, it won't hit Vercel timeouts or payload limits.
-app.post('/api/proxy/cobalt', async (req, res) => {
+app.post('/api/proxy', async (req, res) => {
+
     const { url, aFormat = 'mp3', isAudioOnly = true } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 

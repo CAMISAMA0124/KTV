@@ -54,13 +54,14 @@ async function fetchWithFailover(path, options = {}) {
         try {
             let url;
             if (base === '') {
-                url = `/api${path}`;
-            } else if (base.includes('onrender.com') || base.includes('loca.lt')) {
-                url = `${base}${path}`;
+                url = `/api${path}`; // Vercel relative path
             } else {
-                url = `${base}/api${path}`;
+                // For all external backends (Render, LocalTunnel, Custom), ensure /api prefix
+                const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
+                url = `${cleanBase}/api${path}`;
             }
             console.log(`[Failover] Trying: ${url}`);
+
 
             const isVercel = base === '';
             const controller = new AbortController();
@@ -145,12 +146,13 @@ export async function extractFromURL(url, onProgress, signal) {
     try {
         console.log('[Extract] Calling Hybrid Cobalt Proxy...');
         // 先透過我們的後端 Proxy 拿到 Cobalt 的下載 JSON
-        const proxyRes = await fetchWithFailover('/proxy/cobalt', {
+        const proxyRes = await fetchWithFailover('/proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url }),
             signal
         });
+
 
         if (!proxyRes.ok) {
             const err = await proxyRes.json().catch(() => ({}));
