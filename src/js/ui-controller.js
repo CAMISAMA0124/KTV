@@ -234,16 +234,15 @@ export class UIController {
             }
         });
 
-        // ── 隧道授權助手 (V27) ──
+        // ── 隧道授權助手 (V29) ──
         window.addEventListener('tunnel-auth-required', (e) => {
             const tunnelUrl = e.detail.url;
-            this.showStatus('🔒 家用電腦連線需授權', 'error');
-            this.showError(`請點下方按鈕授權。<br><b>密碼為: 1.165.235.235</b><br>輸入後點 Continue 即可。`);
+            this.setStatus('🔒 家用電腦連線需授權 (511)');
+            this.showError(`請點下方按鈕授權一次。<br><b>密碼為: 1.165.235.235</b>`);
 
-            // 如果還沒顯示，則注入專屬按鈕
-            if (!document.getElementById('auth-btn-tunnel')) {
+            if (!document.getElementById('auth-btn-v29')) {
                 const authBtn = document.createElement('button');
-                authBtn.id = 'auth-btn-tunnel';
+                authBtn.id = 'auth-btn-v29';
                 authBtn.className = 'ktv-tab active';
                 authBtn.textContent = '🚀 點我授權並輸入 1.165.235.235';
                 authBtn.style.margin = '15px auto';
