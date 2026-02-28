@@ -178,3 +178,20 @@ export function isYouTubeURL(str) {
         return /youtube\.com|youtu\.be|music\.youtube\.com/.test(u.hostname);
     } catch { return false; }
 }
+
+export async function checkAPIHealth() {
+    try {
+        const endpoints = getEffectiveEndpoints();
+        for (const base of endpoints) {
+            try {
+                let url = base === '' ? '/api/health' : `${base.replace(/\/$/, '').replace(/\/api$/, '')}/api/health`;
+                const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.ok) return { ok: true, ready: true };
+                }
+            } catch { continue; }
+        }
+    } catch { return { ok: false, ready: false }; }
+    return { ok: false, ready: false };
+}
