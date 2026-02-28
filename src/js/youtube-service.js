@@ -1,10 +1,10 @@
 /**
  * src/js/youtube-service.js
- * (v26 "Silent Hybrid" - Optimized Priority)
+ * (v27 "Refined Legacy" - Stability First)
  * 萬無一失策略：
- * 1. 搜尋、詳情、健康檢查：優先向 Vercel ('') 發送請求，穩定且無 CORS 報錯。
- * 2. 音訊擷取 (Proxy)：優先向本地家用伺服器請求，因為家裡的 IP 不會被 YouTube 封鎖。
- * 3. 徹底消除開啟網頁時噴發的 LocalTunnel 511 紅字錯誤。
+ * 1. 搜尋、詳情、健康檢查：優先 Vercel ('')，避開 LocalTunnel 511 報錯與紅字。
+ * 2. 音訊下載 (Proxy)：優先家用電腦，因為只有家裡 IP 能抓到音檔。
+ * 3. 511 認證：僅在「分析中」被攔截時彈出授權教學與密碼 (1.165.235.235)。
  */
 
 export const EngineConfig = {
@@ -33,14 +33,15 @@ export function isYouTubeURL(url) {
     return !!getYouTubeId(url);
 }
 
-/** 核心基礎：極簡請求 (V26 智慧排序) */
+/** 核心基礎：極簡請求 (V27 智慧優先序) */
 async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
     const isProxy = path.includes('/proxy');
 
-    // 下載流優先用本地，其他(搜尋/健康)優先用雲端
-    const backends = [config.backend, ...EXTERNAL_BACKENDS, ''].filter(b => b !== null && b !== '');
-    const list = isProxy ? backends : ['', ...backends];
+    // 家用後端清單
+    const homeBackend = [config.backend, ...EXTERNAL_BACKENDS].filter(b => b !== '');
+    // 關鍵設定：搜尋優先雲端，下載優先本地
+    const list = isProxy ? [...homeBackend, ''] : ['', ...homeBackend];
 
     let lastError = null;
     for (const base of list) {
@@ -49,7 +50,7 @@ async function apiRequest(path, options = {}) {
             const isLocalTunnel = base.includes('loca.lt');
             let finalPath = path;
 
-            // 核心：如果是 LocalTunnel，絕對不能有自定義標頭 (避免 Preflight)
+            // 核心：如果是 LocalTunnel，絕對不能有標頭 (避免 Preflight)
             const headers = (isLocalTunnel) ? {} : { 'Accept': 'application/json' };
             if (!isLocalTunnel && options.method === 'POST') headers['Content-Type'] = 'application/json';
 
@@ -64,7 +65,7 @@ async function apiRequest(path, options = {}) {
             const res = await fetch(url, { ...fetchOptions, signal: options.signal || AbortSignal.timeout(10000) });
             if (res.ok) return res;
 
-            // 如果是 511 且正在嘗試下載，才通知 UI
+            // 如果下載被 511 擋住，觸發 UI 授權按鈕
             if (res.status === 511 && isLocalTunnel && isProxy) {
                 window.dispatchEvent(new CustomEvent('tunnel-auth-required', { detail: { url: base } }));
             }
@@ -104,14 +105,13 @@ export async function fetchVideoInfo(url) {
 export async function extractFromURL(url, onProgress, signal) {
     const videoId = getYouTubeId(url);
 
-    // 優先從本地家用伺服器獲得網址
+    // 下載代理優先走家裡後端 (因為 Vercel 被 YouTube 封鎖)
     const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
     const data = await res.json();
     if (!data.url) throw new Error('API 無法解析該影片網址');
 
     const streamUrl = data.url;
 
-    // 直接從手機端下載
     const response = await fetch(streamUrl, { signal });
     if (!response.ok) throw new Error('音訊流下載中斷');
 

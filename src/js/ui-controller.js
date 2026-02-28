@@ -234,16 +234,23 @@ export class UIController {
             }
         });
 
-        // ── Tunnel Auth Helper (New in V25) ──
+        // ── 隧道授權助手 (V27) ──
         window.addEventListener('tunnel-auth-required', (e) => {
-            const url = e.detail.url;
-            this.showError(`🔒 撥號失敗 (需授權)。請點擊下方按鈕並選擇「Continue」再回傳。`);
-            const authBtn = document.createElement('button');
-            authBtn.className = 'ktv-tab active';
-            authBtn.textContent = '🚀 點我授權家用電腦';
-            authBtn.style.margin = '10px auto';
-            authBtn.onclick = () => window.open(url, '_blank');
-            this.$panelUrl.appendChild(authBtn);
+            const tunnelUrl = e.detail.url;
+            this.showStatus('🔒 家用電腦連線需授權', 'error');
+            this.showError(`請點下方按鈕授權。<br><b>密碼為: 1.165.235.235</b><br>輸入後點 Continue 即可。`);
+
+            // 如果還沒顯示，則注入專屬按鈕
+            if (!document.getElementById('auth-btn-tunnel')) {
+                const authBtn = document.createElement('button');
+                authBtn.id = 'auth-btn-tunnel';
+                authBtn.className = 'ktv-tab active';
+                authBtn.textContent = '🚀 點我授權並輸入 1.165.235.235';
+                authBtn.style.margin = '15px auto';
+                authBtn.style.width = '100%';
+                authBtn.onclick = () => window.open(tunnelUrl, '_blank');
+                this.$panelUrl.appendChild(authBtn);
+            }
         });
 
         this.$resetBtn?.addEventListener('click', () => this.reset());
