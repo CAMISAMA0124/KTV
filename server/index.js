@@ -52,9 +52,9 @@ app.get('/api/health', (req, res) => {
     res.json({ ok: true, ytDlpReady });
 });
 
-// ── Search videos ───────────────────────────────────────────
-app.post('/api/search', async (req, res) => {
-    const { query } = req.body;
+// ── Search videos (GET to avoid Preflight) ───────────────────
+app.get('/api/search', async (req, res) => {
+    const { query } = req.query;
 
     if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: '請提供搜尋關鍵字' });
@@ -65,6 +65,7 @@ app.post('/api/search', async (req, res) => {
     }
 
     try {
+        console.log(`[Search] Query: ${query}`);
         const results = await searchVideos(query);
         res.json({ ok: true, results });
     } catch (e) {
@@ -72,6 +73,7 @@ app.post('/api/search', async (req, res) => {
         res.status(500).json({ error: `搜尋失敗: ${e.message}` });
     }
 });
+
 
 // ── Video info (metadata only, no download) ─────────────────
 app.post('/api/info', async (req, res) => {
