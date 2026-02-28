@@ -102,41 +102,52 @@ app.post('/api/info', async (req, res) => {
 });
 
 // ── Cobalt Proxy (Solve Browser CORS) ────────────────────────
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, X-Youtube-Cookies');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+
 app.post('/api/proxy', async (req, res) => {
     const { url, aFormat = 'mp3', isAudioOnly = true } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
-    const COBALT_INSTANCES = [
-        'https://co.wuk.sh/api/json',
-        'https://api.cobalt.tools/api/json',
-        'https://cobalt.hypertube.xyz/api/json'
+    console.log(`[Local Proxy] Processing: ${url}`);
+
+    // 多組鏡像源嘗試
+    const targets = [
+        { type: 'piped', url: `https://pipedapi.kavin.rocks/streams/${url.match(/(?:v=|\/embed\/|https:\/\/youtu\.be\/)([^"&?\/\s]{11})/)?.[1]}` },
+        { type: 'cobalt', url: 'https://co.wuk.sh/api/json' },
+        { type: 'cobalt', url: 'https://api.cobalt.tools/api/json' }
     ];
 
-    for (const api of COBALT_INSTANCES) {
+    for (const t of targets) {
         try {
-            console.log(`[Proxy] Trying: ${api}`);
-            const response = await fetch(api, {
+            console.log(`[Local Proxy] Trying ${t.type}: ${t.url}`);
+            const options = t.type === 'cobalt' ? {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                },
-                body: JSON.stringify({ url, aFormat, isAudioOnly, vQuality: '720' }),
-                signal: AbortSignal.timeout(8000)
-            });
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ url, aFormat, isAudioOnly })
+            } : { method: 'GET' };
 
+            const response = await fetch(t.url, { ...options, signal: AbortSignal.timeout(10000) });
             if (response.ok) {
                 const data = await response.json();
+                // 統一回傳格式
+                if (t.type === 'piped') {
+                    return res.json({ url: data.audioStreams?.[0]?.url });
+                }
                 return res.json(data);
             }
         } catch (e) {
-            console.warn(`[Proxy] Instance ${api} failed: ${e.message}`);
+            console.warn(`[Local Proxy] ${t.type} failed: ${e.message}`);
         }
     }
-
-    res.status(502).json({ error: 'COBALT_PROXY_FAILED', message: '所有後端自動化實例皆忙碌中' });
+    res.status(502).json({ error: 'LOCAL_PROXY_ALL_FAILED' });
 });
+
 
 
 // ── Extract audio (Redirected to Client) ──────────────────────
