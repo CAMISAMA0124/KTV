@@ -130,7 +130,10 @@ export async function fetchVideoInfo(url) {
 
 /**
  * 從 YouTube URL 擷取音訊 → 返回 File 物件
- * 策略 (v3): 由用戶瀏覽器直接下載 (透過 Cobalt 公用 API 分流) 以避免伺服器 IP 被鎖
+ * 核心策略 (v4 - Hybrid Smart Proxy): 
+ * 1. 透過後端 Proxy 呼叫 Cobalt (解決 JSON CORS)
+ * 2. 透過 AllOrigins Fetch Blob (解決 Media CORS)
+ * 3. 確保 Vercel 背景環境不負擔下載任務，由用戶瀏覽器分流
  * @param {string} url
  * @param {function} onProgress
  * @param {AbortSignal} signal
@@ -139,53 +142,42 @@ export async function fetchVideoInfo(url) {
 export async function extractFromURL(url, onProgress, signal) {
     onProgress?.(5);
 
-    // ── 策略 1: 使用 Cobalt 公用 API (Client-side Direct) ──
     try {
-        console.log('[Extract] Attempting client-side extraction via Cobalt...');
-        const cobaltResponse = await fetch('https://api.cobalt.tools/api/json', {
+        console.log('[Extract] Calling Hybrid Cobalt Proxy...');
+        // 先透過我們的後端 Proxy 拿到 Cobalt 的下載 JSON
+        const proxyRes = await fetchWithFailover('/proxy/cobalt', {
             method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                url: url,
-                isAudioOnly: true,
-                aFormat: 'mp3',
-                vQuality: '720'
-            }),
-            signal: AbortSignal.timeout(10000)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+            signal
         });
 
-        if (cobaltResponse.ok) {
-            const data = await cobaltResponse.json();
-            if (data.url) {
-                console.log('[Extract] Got stream URL from Cobalt, downloading...');
-                const streamRes = await fetch(data.url, { signal });
-                if (streamRes.ok) {
-                    return await _readStreamToFile(streamRes, 'youtube_audio.mp3', onProgress);
-                }
-            }
+        if (!proxyRes.ok) {
+            const err = await proxyRes.json().catch(() => ({}));
+            throw new Error(err.message || '無法經由伺服器連線 API');
         }
+
+        const data = await proxyRes.json();
+        if (!data.url) throw new Error('API 返回無效網址');
+
+        console.log('[Extract] JSON Success, fetching blob via CORS Proxy...');
+        onProgress?.(20);
+
+        // 使用 AllOrigins 繞過媒體檔的 CORS 限制
+        // 注意：AllOrigins 的 raw 端點可以直接回傳原始位元組並附加 CORS: *
+        const corsProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(data.url)}`;
+
+        const streamRes = await fetch(corsProxyUrl, { signal });
+        if (!streamRes.ok) throw new Error('媒體檔下載失敗 (CORS Proxy Error)');
+
+        return await _readStreamToFile(streamRes, 'youtube_audio.mp3', onProgress);
+
     } catch (e) {
-        console.warn('[Extract] Cobalt API failed or timeout, falling back...', e.message);
+        console.error('[Extract] Hybrid Flow failed:', e.message);
+        throw new Error(`一體化服務暫時離線 (ERROR: ${e.message})。\n您可以嘗試使用本地音檔分析。`);
     }
-
-    // ── 策略 2: 使用備援伺服器 (如果有配置) ──
-    onProgress?.(15);
-    const res = await fetchWithFailover('/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-        signal,
-    });
-
-    if (!res.ok) {
-        throw new Error('無法擷取音訊。請貼上網址或稍後再試，或下載後用本地音檔分析。');
-    }
-
-    return await _readStreamToFile(res, 'youtube_audio.m4a', onProgress);
 }
+
 
 /** 串流讀取輔助函式 */
 async function _readStreamToFile(response, defaultName, onProgress) {

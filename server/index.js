@@ -101,6 +101,48 @@ app.post('/api/info', async (req, res) => {
     }
 });
 
+// ── Cobalt Proxy (Solve Browser CORS) ────────────────────────
+// This allows the browser to call Cobalt via our backend, bypassing CORS.
+// Since it's a small JSON request, it won't hit Vercel timeouts or payload limits.
+app.post('/api/proxy/cobalt', async (req, res) => {
+    const { url, aFormat = 'mp3', isAudioOnly = true } = req.body;
+    if (!url) return res.status(400).json({ error: 'Missing URL' });
+
+    const COBALT_INSTANCES = [
+        'https://api.cobalt.tools/api/json',
+        'https://co.wuk.sh/api/json',
+        'https://cobalt.hypertube.xyz/api/json'
+    ];
+
+    let lastError = null;
+    for (const api of COBALT_INSTANCES) {
+        try {
+            console.log(`[Proxy] Trying Cobalt instance: ${api}`);
+            const response = await fetch(api, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url, aFormat, isAudioOnly, vQuality: '720' }),
+                signal: AbortSignal.timeout(8000)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return res.json(data);
+            }
+            const err = await response.json().catch(() => ({}));
+            console.warn(`[Proxy] ${api} failed: ${err.text || response.status}`);
+        } catch (e) {
+            lastError = e;
+            console.warn(`[Proxy] ${api} error: ${e.message}`);
+        }
+    }
+
+    res.status(502).json({ error: 'COBALT_PROXY_FAILED', message: lastError?.message || '所有 Cobalt 節點皆忙碌中' });
+});
+
 // ── Extract audio (Redirected to Client) ──────────────────────
 app.post('/api/extract', async (req, res) => {
     return res.status(403).json({
@@ -108,6 +150,7 @@ app.post('/api/extract', async (req, res) => {
         message: '為確保服務穩定，下載功能已移至用戶端。請更新前端使用 Cobalt 模式。'
     });
 });
+
 
 
 
