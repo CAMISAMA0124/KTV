@@ -18,8 +18,10 @@ const PORT = process.env.PORT || 3001;
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:4173', 'https://aiktv.vercel.app'],
-    credentials: true,
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Bypass-Tunnel-Reminder', 'Accept', 'X-Youtube-Cookies'],
+    exposedHeaders: ['Content-Length', 'Content-Type']
 }));
 app.use(express.json());
 
@@ -53,7 +55,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── Search videos (GET to avoid Preflight) ───────────────────
-app.get('/api/search', async (req, res) => {
+app.get(['/api/search', '/api/search.json'], async (req, res) => {
     const { query } = req.query;
 
     if (!query || typeof query !== 'string') {
@@ -76,8 +78,8 @@ app.get('/api/search', async (req, res) => {
 
 
 // ── Video info (metadata only, no download) ─────────────────
-app.post('/api/info', async (req, res) => {
-    const { url } = req.body;
+app.all(['/api/info', '/api/info.json'], async (req, res) => {
+    const { url } = (req.method === 'GET' ? req.query : req.body) || {};
 
     if (!url || typeof url !== 'string') {
         return res.status(400).json({ error: '請提供有效的 URL' });
@@ -103,17 +105,7 @@ app.post('/api/info', async (req, res) => {
     }
 });
 
-// ── Super-Permissive CORS (v16) ─────────────────────────────
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Bypass-Tunnel-Reminder', 'Accept', 'X-Youtube-Cookies'],
-    exposedHeaders: ['Content-Length', 'Content-Type']
-}));
-
-
-
-app.all('/api/proxy', async (req, res) => {
+app.all(['/api/proxy', '/api/proxy.json'], async (req, res) => {
     const { url, aFormat = 'mp3', isAudioOnly = true } = (req.method === 'GET' ? req.query : req.body) || {};
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
