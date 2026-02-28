@@ -36,6 +36,10 @@ function getYouTubeId(url) {
     return m ? m[1] : null;
 }
 
+export function isYouTubeURL(url) {
+    return !!getYouTubeId(url);
+}
+
 /** 核心請求引擎 */
 async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
