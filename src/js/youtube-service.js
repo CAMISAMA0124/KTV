@@ -1,10 +1,10 @@
 /**
  * src/js/youtube-service.js
- * (v25 "Legacy Restore" - Focused & Simplified)
- * 本版回歸當時成功的邏輯：
- * 1. 優先嘗試本地家用電腦 (透過 LocalTunnel)。
- * 2. 嚴格遵守「簡單請求」規則，絕不發送自定義標頭，以避開 CORS 預檢與隧道攔截。
- * 3. 搜尋功能回歸 Vercel (YouTube API)，這是最穩定的方案。
+ * (v26 "Silent Hybrid" - Optimized Priority)
+ * 萬無一失策略：
+ * 1. 搜尋、詳情、健康檢查：優先向 Vercel ('') 發送請求，穩定且無 CORS 報錯。
+ * 2. 音訊擷取 (Proxy)：優先向本地家用伺服器請求，因為家裡的 IP 不會被 YouTube 封鎖。
+ * 3. 徹底消除開啟網頁時噴發的 LocalTunnel 511 紅字錯誤。
  */
 
 export const EngineConfig = {
@@ -33,10 +33,14 @@ export function isYouTubeURL(url) {
     return !!getYouTubeId(url);
 }
 
-/** 核心基礎：極簡請求 (避開 CORS 與 511) */
+/** 核心基礎：極簡請求 (V26 智慧排序) */
 async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
-    const list = [config.backend, ...EXTERNAL_BACKENDS, ''].filter(b => b !== null && b !== '');
+    const isProxy = path.includes('/proxy');
+
+    // 下載流優先用本地，其他(搜尋/健康)優先用雲端
+    const backends = [config.backend, ...EXTERNAL_BACKENDS, ''].filter(b => b !== null && b !== '');
+    const list = isProxy ? backends : ['', ...backends];
 
     let lastError = null;
     for (const base of list) {
@@ -45,12 +49,9 @@ async function apiRequest(path, options = {}) {
             const isLocalTunnel = base.includes('loca.lt');
             let finalPath = path;
 
-            // 核心：如果是 LocalTunnel，絕對不能有標頭 (避免 Preflight)
-            const headers = {};
-            if (!isLocalTunnel) {
-                headers['Accept'] = 'application/json';
-                if (options.method === 'POST') headers['Content-Type'] = 'application/json';
-            }
+            // 核心：如果是 LocalTunnel，絕對不能有自定義標頭 (避免 Preflight)
+            const headers = (isLocalTunnel) ? {} : { 'Accept': 'application/json' };
+            if (!isLocalTunnel && options.method === 'POST') headers['Content-Type'] = 'application/json';
 
             if (isLocalTunnel && !path.includes('.json')) {
                 const [p, q] = path.split('?');
@@ -58,19 +59,13 @@ async function apiRequest(path, options = {}) {
             }
 
             const url = base === '' ? `/api${finalPath}` : `${cleanBase}/api${finalPath}`;
+            const fetchOptions = { ...options, headers: { ...headers, ...(options.headers || {}) }, mode: 'cors' };
 
-            const fetchOptions = {
-                ...options,
-                headers: { ...headers, ...(options.headers || {}) },
-                mode: 'cors'
-            };
-
-            const res = await fetch(url, { ...fetchOptions, signal: AbortSignal.timeout(10000) });
+            const res = await fetch(url, { ...fetchOptions, signal: options.signal || AbortSignal.timeout(10000) });
             if (res.ok) return res;
 
-            // 如果是 511，代表隧道需要認證
-            if (res.status === 511 && isLocalTunnel) {
-                console.error('[Tunnel] Authorization Required (511)');
+            // 如果是 511 且正在嘗試下載，才通知 UI
+            if (res.status === 511 && isLocalTunnel && isProxy) {
                 window.dispatchEvent(new CustomEvent('tunnel-auth-required', { detail: { url: base } }));
             }
         } catch (e) {
@@ -82,7 +77,6 @@ async function apiRequest(path, options = {}) {
 
 /** 輸出 1：搜尋歌曲 */
 export async function searchYouTube(query) {
-    // 搜尋功能 Vercel 或本地都行，Vercel 比較穩 (API Key)
     const res = await apiRequest(`/search?query=${encodeURIComponent(query)}`);
     const data = await res.json();
     return data.results || [];
@@ -90,17 +84,18 @@ export async function searchYouTube(query) {
 
 /** 輸出 2：獲取影片詳情 */
 export async function fetchVideoInfo(url) {
-    const res = await apiRequest(`/search?query=${encodeURIComponent(url)}`);
-    const data = await res.json();
-    if (data.results?.[0]) return data.results[0];
+    try {
+        const res = await apiRequest(`/search?query=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (data.results?.[0]) return data.results[0];
+    } catch (e) { }
 
-    // Fallback info
     const videoId = getYouTubeId(url);
     return {
-        id: videoId,
-        title: 'YouTube 歌曲 (待解析)',
+        id: videoId || 'unknown',
+        title: 'YouTube 影片',
         uploader: 'YouTube',
-        thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        thumbnail: videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '',
         duration: 0
     };
 }
