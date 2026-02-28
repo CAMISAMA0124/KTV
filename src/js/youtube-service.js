@@ -81,7 +81,8 @@ async function fetchWithFailover(path, options = {}) {
             if (!res.ok) {
                 // Trigger failover for server errors, rate limiting, and missing endpoints (404)
                 if (res.status === 404 || res.status === 429 || res.status >= 500) {
-                    throw new Error(`API_ERROR_${res.status}`);
+                    const errBody = await res.json().catch(() => ({}));
+                    throw new Error(`端點異常 (HTTP ${res.status}): ${errBody.error || '無法連線'}`);
                 }
             }
 
@@ -92,7 +93,7 @@ async function fetchWithFailover(path, options = {}) {
         }
     }
 
-    throw lastError || new Error('所有後端服務皆不可用');
+    throw new Error(`所有後端服務皆不可用。\n${lastError ? lastError.message : '請檢查網路限制或稍後再試。'}`);
 }
 
 /**

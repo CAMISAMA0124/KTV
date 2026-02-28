@@ -56,29 +56,41 @@ export default async function handler(req, res) {
     const tmpPath = join(tmpdir(), `vercel_${Date.now()}.m4a`);
     const ytDlp = await getYtDlpPath();
 
+    const cookiesStr = req.headers['x-youtube-cookies'];
+    let cookiesPath = null;
+    let baseArgs = [
+        url,
+        '--no-cache-dir',
+        '--extractor-args', 'youtube:player-client=android_music,ios'
+    ];
+
+    if (cookiesStr) {
+        cookiesPath = join(tmpdir(), `cookies_${Date.now()}.txt`);
+        writeFileSync(cookiesPath, cookiesStr);
+        baseArgs.push('--cookies', cookiesPath);
+    }
+
     try {
         // Get info first
         const { stdout: infoOut } = await execFileAsync(ytDlp, [
-            url, '--dump-json',
-            '--extractor-args', 'youtube:player-client=android_music,ios',
-            '--no-cache-dir',
+            ...baseArgs,
+            '--dump-json'
         ], { timeout: 30000 });
         const info = JSON.parse(infoOut.trim());
 
         // Download audio
         await execFileAsync(ytDlp, [
-            url,
+            ...baseArgs,
             '-f', 'ba/b',
             '--no-playlist',
             '--no-part',
-            '--no-cache-dir',
             '--force-overwrites',
-            '--extractor-args', 'youtube:player-client=android_music,ios',
             '--output', tmpPath,
         ], { timeout: 120000 });
 
         const buffer = readFileSync(tmpPath);
         try { unlinkSync(tmpPath); } catch { }
+        try { if (cookiesPath) unlinkSync(cookiesPath); } catch { }
 
         const safeTitle = (info.title || 'audio').replace(/[^\w\s-]/g, '').trim().substring(0, 50);
         res.setHeader('Content-Type', 'audio/mp4');
@@ -90,6 +102,7 @@ export default async function handler(req, res) {
 
     } catch (e) {
         try { unlinkSync(tmpPath); } catch { }
+        try { if (cookiesPath) unlinkSync(cookiesPath); } catch { }
         console.error('[Vercel Extract]', e.message);
         return res.status(500).json({ error: e.message });
     }

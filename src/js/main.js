@@ -78,6 +78,7 @@ async function processFile(file, metadata = null, mode = 'ai') {
         // Clear original decoded buffer to save memory
         decoded = null;
 
+        const duration = resampled.duration;
         const { left, right } = bufferToStereoArrays(resampled);
         // Clear resampled buffer after extracting raw arrays
         resampled = null;
@@ -106,7 +107,7 @@ async function processFile(file, metadata = null, mode = 'ai') {
             if (signal.aborted) return;
 
             ui.setState(UIState.PROCESSING);
-            ui.setStatus(`✅ AI 推論中 (${formatDuration(resampled.duration)})...`);
+            ui.setStatus(`✅ AI 推論中 (${formatDuration(duration)})...`);
 
             separation = await runInference(session, left, right, modelConfig, {
                 signal,
