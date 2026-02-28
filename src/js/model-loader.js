@@ -1,18 +1,31 @@
 /**
- * model-loader.js
+ * model-loader.js v3.0
  * ONNX Runtime Web 模型載入，支援 WebGPU / WASM fallback
  *
  * 使用的模型：
- *  - 社群維護的 htdemucs (2-stem vocals/no_vocals) ONNX float16 量化版
- *    來源：https://huggingface.co/demucs/onnx-demucs
- *    大小：約 80MB
+ *  - timcsy/demucs-web-onnx — htdemucs_embedded.onnx (4-stem STFT)
+ *    來源：https://huggingface.co/timcsy/demucs-web-onnx
+ *    大小：約 180MB
  *
- * 開發時使用 MOCK 模式，真實模型替換 MODEL_URL 即可。
+ * 關鍵設定：
+ *  - ort.env.wasm.numThreads = 1  (避免 WASM 多執行緒崩潰)
+ *  - 自動降級：WebGPU → WASM
  */
 
 import * as ort from 'onnxruntime-web';
 import { getOrDownloadModel } from './opfs-cache.js';
 import { EnvStatus } from './env-check.js';
+
+// ── 全局 ORT 環境設定 (只執行一次) ──────────────────────────
+let _ortConfigured = false;
+function configureOrtGlobal() {
+    if (_ortConfigured) return;
+    // 關鍵修復：numThreads=1 可避免 SharedArrayBuffer COOP 問題
+    ort.env.wasm.numThreads = 1;
+    ort.env.wasm.simd = true;
+    _ortConfigured = true;
+    console.log('[ModelLoader] ORT env configured: numThreads=1, simd=true');
+}
 
 // ============================================================
 // 設定模型 URL（替換為真實模型 URL）
@@ -57,6 +70,9 @@ function configureORT(backend) {
  * @returns {Promise<{session: ort.InferenceSession, config: object}>}
  */
 export async function loadModel({ modelKey = DEFAULT_MODEL, backend = EnvStatus.WASM, onDownloadProgress, onStatus } = {}) {
+    // 初始化 ORT 全局設定
+    configureOrtGlobal();
+
     // 已快取 session，直接返回
     if (cachedSession && cachedModelKey === modelKey) {
         onStatus?.('✅ 模型已就緒（記憶體中）');
@@ -93,35 +109,53 @@ export async function loadModel({ modelKey = DEFAULT_MODEL, backend = EnvStatus.
         graphOptimizationLevel: 'all',
         enableCpuMemArena: true,
         enableMemPattern: true,
+        extra: {
+            session: { use_ort_model_bytes_directly: '1' }
+        }
     };
 
-    try {
-        // Logging first few bytes to debug if it's a valid ONNX protobuf
-        const uint8 = new Uint8Array(buffer);
-        console.log(`[ModelLoader] Model first 4 bytes: ${uint8[0]}, ${uint8[1]}, ${uint8[2]}, ${uint8[3]}`);
+    // Helper：帶 timeout 的 session 建立
+    async function createSessionWithTimeout(data, opts, timeoutMs = 120000) {
+        return Promise.race([
+            ort.InferenceSession.create(data, opts),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Session 建立超時 (120s)')), timeoutMs)
+            )
+        ]);
+    }
 
-        // Pass Uint8Array directly instead of ArrayBuffer to prevent offset/parsing issues.
-        cachedSession = await ort.InferenceSession.create(uint8, sessionOptions);
+    try {
+        const uint8 = new Uint8Array(buffer);
+        console.log(`[ModelLoader] Model size: ${(uint8.length / 1024 / 1024).toFixed(1)}MB, first 4 bytes: ${uint8[0]}, ${uint8[1]}, ${uint8[2]}, ${uint8[3]}`);
+
+        cachedSession = await createSessionWithTimeout(uint8, sessionOptions);
         cachedModelKey = modelKey;
         onStatus?.('✅ AI 引擎啟動完成！');
         return { session: cachedSession, config };
     } catch (e) {
         // Fallback to WASM if GPU init fails
         if (backend !== EnvStatus.WASM) {
-            console.warn(`${backend} 初始化失敗，降級到 WASM`, e);
+            console.warn(`${backend} 初始化失敗，降級到 WASM:`, e.message);
             onStatus?.(`⚠️ GPU 初始化失敗，改用 CPU 模式...`);
-            const wsmOptions = {
+            const wasmOptions = {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all',
+                enableCpuMemArena: true,
             };
-            const uint8 = new Uint8Array(buffer);
-            cachedSession = await ort.InferenceSession.create(uint8, wsmOptions);
-            cachedModelKey = modelKey;
-            return { session: cachedSession, config };
+            try {
+                const uint8 = new Uint8Array(buffer);
+                cachedSession = await createSessionWithTimeout(uint8, wasmOptions, 180000);
+                cachedModelKey = modelKey;
+                onStatus?.('✅ CPU 模式啟動完成（較慢）');
+                return { session: cachedSession, config };
+            } catch (e2) {
+                throw new Error(`GPU 和 CPU 模式均啟動失敗。GPU: ${e.message} | CPU: ${e2.message}`);
+            }
         }
-        throw e;
+        throw new Error(`AI 引擎啟動失敗: ${e.message}。請嘗試重新整理頁面。`);
     }
 }
+
 
 function getExecutionProviders(backend) {
     switch (backend) {

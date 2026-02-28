@@ -91,8 +91,12 @@ export class UIController {
 
     // ── Bind events ──────────────────────────────────────────
     _bindEvents() {
+        // Drag & Drop
+        this._initDragAndDrop();
+
         // KTV Controls
         this.$guideToggle?.addEventListener('click', () => {
+            if ('vibrate' in navigator) navigator.vibrate(5);
             const isActive = this.$guideToggle.classList.contains('active');
             const newState = !isActive;
             this.$guideToggle.classList.toggle('active', newState);
@@ -102,14 +106,17 @@ export class UIController {
         });
 
         this.$pitchDown?.addEventListener('click', () => {
+            if ('vibrate' in navigator) navigator.vibrate(5);
             this._currentPitch--;
             this._updatePitch();
         });
 
         this.$pitchUp?.addEventListener('click', () => {
+            if ('vibrate' in navigator) navigator.vibrate(5);
             this._currentPitch++;
             this._updatePitch();
         });
+
 
         // Engine Drawer UI
         this.$engineBtn?.addEventListener('click', () => this._toggleEngineDrawer(true));
@@ -200,7 +207,13 @@ export class UIController {
 
         this.$extractBtn?.addEventListener('click', () => {
             if (this._selectedVideo && this.state === UIState.IDLE) {
-                this._showModeSelection();
+                if (this._selectedFile) {
+                    // 已有本地音檔，直接顯示模式選擇
+                    this._showModeSelection();
+                } else {
+                    // 還沒下載，顯示下載指引
+                    this._showDownloadGuide(this._selectedVideo.url, this._selectedVideo.title);
+                }
             }
         });
 
@@ -249,25 +262,37 @@ export class UIController {
         this.$urlInput.placeholder = '貼上網址或搜尋歌曲...';
         this._resetURLPanel();
         if (!results || results.length === 0) {
-            this.$searchResults.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-3); font-size: 0.8rem;">查無結果</div>';
+            this.$searchResults.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-3); font-size: 0.85rem;">☹️ 找不到相關歌曲，請嘗試縮減關鍵字</div>';
             this.$searchResults.style.display = 'block';
             return;
         }
 
         this.$searchResults.innerHTML = results.map(video => `
-            <div class="search-item" data-id="${video.id}">
-                <img class="search-thumb" src="${video.thumbnail}" alt="">
+            <div class="search-item" data-id="${video.id}" style="display:flex; align-items:center; gap:14px; padding:12px; border-radius:20px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); margin-bottom:10px; cursor:pointer; transition:0.3s cubic-bezier(0.23, 1, 0.32, 1);">
+                <img class="search-thumb" src="${video.thumbnail}" style="width:100px; height:56px; border-radius:12px; object-fit:cover; flex-shrink:0;">
                 <div class="search-meta" style="flex: 1; min-width: 0;">
-                    <div class="search-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${video.title}</div>
-                    <div class="search-sub">
+                    <div class="search-title" style="font-weight:700; font-size:0.92rem; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${video.title}</div>
+                    <div class="search-sub" style="font-size:0.75rem; color:var(--text-3); display:flex; gap:10px;">
                         <span>👤 ${video.uploader}</span>
                         <span>⏱️ ${this._formatSeconds(video.duration)}</span>
                     </div>
-                <button class="inline-extract-btn" style="display: none; margin-left: auto; align-self: center; padding: 12px 20px; border-radius: 20px; border: none; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%); color: #fff; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 5px 15px rgba(167, 139, 250, 0.3); transition: 0.3s; white-space: nowrap; flex-shrink: 0; align-items: center; justify-content: center;">🎵 前往下載</button>
+                </div>
+                <button class="inline-extract-btn" style="
+                    display: flex; align-items: center; justify-content: center; gap: 4px;
+                    padding: 10px 14px; border-radius: 14px; border: none;
+                    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%);
+                    color: #fff; font-weight: 800; font-size: 0.8rem;
+                    cursor: pointer; box-shadow: 0 4px 12px rgba(167, 139, 250, 0.2);
+                    transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
+                " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(167, 139, 250, 0.3)'" onmouseout="this.style.transform='scale(1)'">
+                    📥 下載導引
+                </button>
             </div>
         `).join('');
 
         this.$searchResults.style.display = 'flex';
+        this.$searchResults.style.flexDirection = 'column';
+
 
         this.$searchResults.querySelectorAll('.search-item').forEach((item, idx) => {
             const btn = item.querySelector('.inline-extract-btn');
@@ -297,13 +322,9 @@ export class UIController {
 
             if (btn) {
                 btn.onclick = (e) => {
-                    e.stopPropagation(); // prevent item.onclick from firing again
+                    e.stopPropagation();
                     navigator.clipboard.writeText(results[idx].url).catch(() => { });
-                    window.open('https://cobalt.tools/', '_blank');
-                    this.setStatus('已複製網址！請於下載完成後，點擊上方【📁 本地音檔分析】上傳檔案。');
-                    setTimeout(() => {
-                        this._resetURLPanel();
-                    }, 3000);
+                    this._showDownloadGuide(results[idx].url, results[idx].title);
                 };
             }
         });
@@ -317,15 +338,11 @@ export class UIController {
         this.$videoDuration.textContent = `⏱️ ${this._formatSeconds(video.duration)}`;
         this.$videoPreview.style.display = 'flex';
         this.$extractBtn.style.display = 'inline-flex';
-        this.$extractBtn.textContent = '🎵 複製網址並前往下載';
+        this.$extractBtn.textContent = '📥 下載並分析此歌曲';
         this.$extractBtn.disabled = false;
         this.$extractBtn.onclick = () => {
             navigator.clipboard.writeText(video.url).catch(() => { });
-            window.open('https://cobalt.tools/', '_blank');
-            this.setStatus('已複製網址！請於下載完成後，點擊上方【📁 本地音檔分析】上傳檔案。');
-            setTimeout(() => {
-                this._resetURLPanel();
-            }, 3000);
+            this._showDownloadGuide(video.url, video.title);
         };
         this.emit('video-selected', video);
     }
@@ -346,7 +363,92 @@ export class UIController {
     _showModeSelection() {
         document.getElementById('mode-selection').style.display = 'block';
         this.$extractBtn.style.display = 'none';
+        // 顯示提示 hint
+        const hint = document.getElementById('mode-file-hint');
+        if (hint) {
+            hint.style.display = this._selectedFile ? 'block' : 'none';
+        }
         window.scrollTo({ top: document.getElementById('mode-selection').offsetTop - 20, behavior: 'smooth' });
+    }
+
+    /**
+     * 顯示下載指引 Modal — 整合多個下載工具
+     */
+    _showDownloadGuide(ytUrl, title) {
+        // 移除已存在的 modal
+        document.getElementById('dl-guide-modal')?.remove();
+
+        const tools = [
+            { name: 'cobalt.tools', url: 'https://cobalt.tools/', desc: '無廣告，隱私佳', icon: '🔵' },
+            { name: 'yt5s.in', url: 'https://yt5s.in/', desc: '支援 M4A/MP3', icon: '🟢' },
+            { name: 'ytmp3.cc', url: 'https://ytmp3.cc/', desc: 'MP3 高品質', icon: '🟡' },
+            { name: 'savefrom.net', url: 'https://savefrom.net/', desc: '老牌工具', icon: '🟠' },
+        ];
+
+        const modal = document.createElement('div');
+        modal.id = 'dl-guide-modal';
+        modal.style.cssText = `
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+            display: flex; align-items: flex-end; justify-content: center;
+            padding: 20px;
+        `;
+        modal.innerHTML = `
+            <div style="
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                border: 1px solid rgba(167,139,250,0.3);
+                border-radius: 28px 28px 20px 20px;
+                padding: 28px 24px 32px;
+                width: 100%; max-width: 480px;
+                box-shadow: 0 -20px 60px rgba(167,139,250,0.2);
+            ">
+                <div style="text-align:center; margin-bottom: 20px;">
+                    <div style="font-size:2rem; margin-bottom:8px;">📥</div>
+                    <h3 style="font-size:1.1rem; font-weight:800; margin:0 0 6px;">下載音訊到手機</h3>
+                    <p style="font-size:0.8rem; color: rgba(255,255,255,0.5); margin:0;">
+                        YouTube 網址已複製到剪貼簿<br>請選擇下載工具，貼上網址並下載 <b>M4A</b> 或 <b>MP3</b> 格式
+                    </p>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;">
+                    ${tools.map(t => `
+                        <a href="${t.url}" target="_blank" rel="noopener" style="
+                            display:flex; align-items:center; gap:14px;
+                            background: rgba(255,255,255,0.06);
+                            border: 1px solid rgba(255,255,255,0.1);
+                            border-radius: 14px; padding: 14px 18px;
+                            text-decoration: none; color: #fff;
+                            transition: background 0.2s;
+                        " onmouseover="this.style.background='rgba(167,139,250,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+                            <span style="font-size:1.5rem;">${t.icon}</span>
+                            <div>
+                                <div style="font-weight:700; font-size:0.95rem;">${t.name}</div>
+                                <div style="font-size:0.75rem; color:rgba(255,255,255,0.4);">${t.desc}</div>
+                            </div>
+                            <span style="margin-left:auto; opacity:0.4; font-size:1.1rem;">↗</span>
+                        </a>
+                    `).join('')}
+                </div>
+                <div style="
+                    background: rgba(167,139,250,0.1);
+                    border: 1px solid rgba(167,139,250,0.2);
+                    border-radius: 12px; padding: 12px 16px;
+                    font-size: 0.78rem; color: rgba(255,255,255,0.5);
+                    margin-bottom: 16px; line-height: 1.6;
+                ">
+                    💡 <b>下載完成後</b>：關閉外部視窗，點選上方<br>
+                    <b>📁 本地音檔分析</b> 上傳剛下載的音檔
+                </div>
+                <button id="dl-guide-close" style="
+                    width:100%; padding:14px; border-radius:14px; border:none;
+                    background: rgba(255,255,255,0.08); color:#fff;
+                    font-size:0.9rem; font-weight:600; cursor:pointer;
+                ">✕ 關閉</button>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        document.getElementById('dl-guide-close').addEventListener('click', () => modal.remove());
     }
 
     setAPIStatus(ok, isWarming = false) {
@@ -539,9 +641,14 @@ export class UIController {
     showError(msg) {
         this.setState(UIState.ERROR);
         this.setStatus(msg);
-        console.error('[UI] Fatal Error:', msg);
-        // Don't auto-reset immediately so user can read the error
-        // setTimeout(() => { if (this.state === UIState.ERROR) this.reset(); }, 6000);
+        console.error('[UI] Error:', msg);
+        // 8 秒後自動恢復，讓用戶有時間閱讀錯誤訊息
+        setTimeout(() => {
+            if (this.state === UIState.ERROR) {
+                this.setState(UIState.IDLE);
+                this.setStatus('');
+            }
+        }, 8000);
     }
 
     async _blobToAudioBuffer(blob) {
@@ -581,4 +688,52 @@ export class UIController {
             if (label) label.textContent = '設定';
         }
     }
+
+    /**
+     * 初始化 拖放功能
+     */
+    _initDragAndDrop() {
+        const dropZone = document.body;
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        dropZone.addEventListener('dragover', () => {
+            document.body.classList.add('drag-over');
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, () => {
+                document.body.classList.remove('drag-over');
+            });
+        });
+
+        dropZone.addEventListener('drop', e => {
+            const file = e.dataTransfer.files[0];
+            if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/'))) {
+                if ('vibrate' in navigator) navigator.vibrate([10, 30, 10]);
+                this.emit('file-selected', file);
+            } else {
+                this.showError('請拖放音訊或影片檔案 (.mp3, .m4a, .wav, .mp4)');
+            }
+        });
+    }
+
+    /**
+     * 簡單 PWA 安裝指引 (偵測 iOS/Android)
+     */
+    _showInstallPrompt() {
+        if (window.matchMedia('(display-mode: standalone)').matches) return;
+
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+            console.log('[PWA] iOS detected, suggesting Add to Home Screen');
+            // 可以根據需要顯示一個小提示視窗
+        }
+    }
 }
+

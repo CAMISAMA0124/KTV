@@ -22,14 +22,15 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['onnxruntime-web'],
   },
+  worker: {
+    format: 'es',
+    // 解決 rollup 分塊問題
+  },
   build: {
     target: 'esnext',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'ort': ['onnxruntime-web'],
-        },
-      },
-    },
-  },
+    minify: 'esbuild'
+  }
 });
+
+
+

@@ -72,7 +72,7 @@ async function processFile(file, metadata = null, mode = 'ai') {
         ui.setProgress(10);
 
         let decoded = await decodeAudioFile(file, msg => ui.setStatus(msg));
-        const targetSampleRate = mode === 'ai' ? MODEL_CONFIG[DEFAULT_MODEL].sampleRate : 44100;
+        const targetSampleRate = 44100; // Demucs v4 is 44.1kHz
 
         let resampled = await resampleBuffer(decoded, targetSampleRate, msg => ui.setStatus(msg));
         // Clear original decoded buffer to save memory
@@ -86,40 +86,19 @@ async function processFile(file, metadata = null, mode = 'ai') {
         let separation;
 
         if (mode === 'ai') {
-            // AI 模式：需要載入模型並推論
-            ui.setState(UIState.LOADING_MODEL);
-            ui.setStatus('⏳ 正在啟動 AI 引擎...');
-
-            const result = await loadModel({
-                modelKey: DEFAULT_MODEL,
-                backend: envResult.bestBackend,
-                onDownloadProgress: (loaded, total) => {
-                    const pct = (loaded / total) * 40;
-                    ui.setProgress(10 + pct);
-                    ui.setStatus(`📥 下載模型 ${(loaded / 1024 / 1024).toFixed(1)}MB...`);
-                },
-                onStatus: msg => ui.setStatus(msg),
-            });
-
-            session = result.session;
-            modelConfig = result.config;
-
-            if (signal.aborted) return;
-
             ui.setState(UIState.PROCESSING);
-            ui.setStatus(`✅ AI 推論中 (${formatDuration(duration)})...`);
+            ui.setStatus('🧠 啟動 AI 引擎...');
 
-            separation = await runInference(session, left, right, modelConfig, {
+            // 使用 Worker 推論 (不阻塞主線程)
+            separation = await runInference(null, left, right, MODEL_CONFIG[DEFAULT_MODEL], {
                 signal,
-                onProgress: (idx, total, pct, eta) => ui.setProgress(50 + pct * 0.45, eta),
+                onProgress: (loaded, total, pct) => ui.setProgress(10 + pct * 0.8),
                 onStatus: msg => ui.setStatus(msg),
             });
         } else {
-            // 快速模式：直接使用模板技術
+            // 快速模式 (Template)
             ui.setStatus('⚡ 快速處理中 (模板模式)...');
             ui.setProgress(70);
-
-            // 延遲一下讓 UI 有反應
             await new Promise(r => setTimeout(r, 300));
             separation = quickVocalRemoval(left, right);
             ui.setProgress(90);
@@ -128,7 +107,9 @@ async function processFile(file, metadata = null, mode = 'ai') {
         if (signal.aborted) return;
 
         // 封裝結果
-        const samplerate = mode === 'ai' ? modelConfig.sampleRate : 44100;
+        const samplerate = 44100;
+        ui.setStatus('📦 正在打包音軌...');
+
         const vocalsWav = encodeWAV(separation.vocals.left, separation.vocals.right, samplerate);
         const accompWav = encodeWAV(separation.accompaniment.left, separation.accompaniment.right, samplerate);
 
@@ -147,6 +128,7 @@ async function processFile(file, metadata = null, mode = 'ai') {
         ui.showError(`處理失敗: ${e.message}`);
     }
 }
+
 
 // ─── URL 匯入流程 ────────────────────────────────────────────
 
@@ -186,7 +168,15 @@ ui.on('mode-selected', (mode, file, video) => {
     if (file) {
         processFile(file, video, mode);
     } else if (video) {
-        ui.showError('請點選【🎵 複製網址並下載】自行下載後，再點擊【📁 本地音檔分析】上傳進行分析！');
+        // 後端不再支援提取，引導用戶使用本地音檔
+        ui.showError('⚠️ 請先下載音檔後再分析！\n點擊【📥 前往下載】選擇下載工具，完成後點擊【📁 本地音檔分析】上傳。');
+        setTimeout(() => {
+            if (ui.state === 'error') {
+                ui.setState('idle');
+            }
+        }, 5000);
+    } else {
+        ui.showError('請先選擇一首歌曲或上傳本地音檔。');
     }
 });
 

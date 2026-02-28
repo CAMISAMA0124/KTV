@@ -127,6 +127,46 @@ body {
   }
 }
 
+/* 🟢 Drag & Drop Feedback */
+body.drag-over #app {
+  transform: scale(0.98);
+  filter: blur(2px) grayscale(0.5);
+  transition: 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+body.drag-over::after {
+  content: '📁 放開檔案即可分析';
+  position: fixed;
+  inset: 20px;
+  border: 4px dashed var(--accent);
+  background: rgba(167, 139, 250, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #fff;
+  z-index: 10000;
+  animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes bounce-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* 🟢 Glassmorphism Refinement */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
 /* 🟢 Engine Settings Drawer (Bottom Sheet) */
 .engine-drawer {
   position: fixed;
@@ -134,16 +174,17 @@ body {
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(20, 20, 30, 0.95);
-  backdrop-filter: blur(50px) saturate(200%);
-  -webkit-backdrop-filter: blur(50px) saturate(200%);
+  background: rgba(15, 15, 25, 0.95);
+  backdrop-filter: blur(60px) saturate(210%);
+  -webkit-backdrop-filter: blur(60px) saturate(210%);
   border-top: 1px solid var(--border);
-  border-radius: 32px 32px 0 0;
+  border-radius: 36px 36px 0 0;
   padding: 12px 24px calc(var(--safe-bot) + 32px);
   transform: translateY(100%);
-  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  transition: transform 0.6s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 -10px 50px rgba(0, 0, 0, 0.6);
 }
+
 
 .engine-drawer.open {
   transform: translateY(0);

@@ -1,91 +1,72 @@
 /**
- * inference-engine.js v3.0
- * 整合 demucs-web 專業處理庫
- * 完美處理 htdemucs_embedded.onnx (4-stem + STFT)
+ * inference-engine.js v5.0 (Worker Bridge)
+ * 管理 Web Worker 推論進程，提供主執行緒不阻塞的 AI 分離介面
  */
 
-import * as ort from 'onnxruntime-web';
-import { DemucsProcessor } from 'demucs-web';
+let worker = null;
 
-/**
- * 主推論排程函式 — 使用 demucs-web 處理複雜的 STFT + 推論 + iSTFT 機制
- * @param {ort.InferenceSession} session - 已載入的模型 session
- * @param {Float32Array} left - 原始左聲道 (完整音軌)
- * @param {Float32Array} right - 原始右聲道 (完整音軌)
- * @param {object} config - 模型設定
- * @param {object} callbacks
- * @param {function} callbacks.onProgress - (chunkIdx, total, percent, eta) => void
- * @param {function} callbacks.onStatus - (msg) => void
- * @param {AbortSignal} signal - 取消推論用
- * @returns {Promise<SeparatedResult>}
- */
 export async function runInference(session, left, right, config, { onProgress, onStatus, signal } = {}) {
-    onStatus?.('🧠 啟動專業版 Demucs 推論引擎...');
+    // 建立新 Worker (使用 Vite 語法)
+    if (worker) worker.terminate();
+    worker = new Worker(new URL('./inference-worker.js', import.meta.url), { type: 'module' });
 
-    // 建立 demucs-web 推論器，並將現有 session 注入
-    const processor = new DemucsProcessor({
-        ort: ort,
-        onProgress: ({ progress, currentSegment, totalSegments }) => {
-            const pct = Math.round(progress * 100);
-            // 這裡 ETA 計算稍微簡化，由 UI 自己算或從這傳
-            onProgress?.(currentSegment, totalSegments, pct, 0);
-        },
-        onLog: (phase, msg) => {
-            console.log(`[Demucs Engine][${phase}] ${msg}`);
-            if (phase === 'Inference') onStatus?.(`⚡ AI 推論中: ${msg}`);
-        }
-    });
+    return new Promise((resolve, reject) => {
+        // 監聽 Worker 訊息
+        worker.onmessage = (e) => {
+            const { type, payload } = e.data;
 
-    // 關鍵：將已載入的 session 接管
-    processor.session = session;
-
-    // 處理取消信號
-    if (signal) {
-        signal.addEventListener('abort', () => {
-            onStatus?.('⚠️ 推論已手動取消');
-        });
-    }
-
-    onStatus?.('⚡ 正在處理音軌 (STFT + AI + iSTFT)...');
-
-    // 執行分離 (內部會自動切片與重疊合併)
-    try {
-        const result = await processor.separate(left, right);
-
-        onStatus?.('✅ 音軌分離完成！');
-
-        // 返回格式相容於 UI: { vocals, accompaniment }
-        // demucs-web 回傳: { drums, bass, other, vocals }
-        // 我們將 drums+bass+other 合併為 accompaniment
-        // Result format: { drums, bass, other, vocals }
-        // We merge drums + bass + other into accompaniment
-        const accompaniment = {
-            left: new Float32Array(left.length),
-            right: new Float32Array(left.length)
-        };
-
-        const mergeStems = ['drums', 'bass', 'other'];
-        for (const stem of mergeStems) {
-            const data = result[stem];
-            if (data) {
-                for (let i = 0; i < left.length; i++) {
-                    accompaniment.left[i] += data.left[i];
-                    accompaniment.right[i] += data.right[i];
-                }
-                // Proactively clear to help GC
-                result[stem] = null;
+            if (type === 'INIT_DONE') {
+                worker.postMessage({
+                    type: 'SEPARATE',
+                    payload: { left, right, config }
+                }, [left.buffer, right.buffer]); // Transfer buffer to avoid copy
             }
-        }
 
-        const vocals = result.vocals;
-        onStatus?.('✅ 音軌分離完成！正在打包...');
+            if (type === 'PROGRESS') {
+                const { pct, msg } = payload;
+                onProgress?.(0, 0, pct, 0); // Adapter to old progress signature
+                onStatus?.(msg);
+            }
 
-        return {
-            vocals: vocals,
-            accompaniment: accompaniment
+            if (type === 'STATUS') {
+                onStatus?.(payload);
+            }
+
+            if (type === 'DONE') {
+                onStatus?.('✅ AI 分析完成！');
+                worker.terminate();
+                worker = null;
+                resolve(payload);
+            }
+
+            if (type === 'ERROR') {
+                worker.terminate();
+                worker = null;
+                reject(new Error(payload));
+            }
+
+            if (type === 'DOWNLOAD_PROGRESS') {
+                const { loaded, total } = payload;
+                onProgress?.(loaded, total, (loaded / total) * 100, 0);
+            }
         };
-    } catch (e) {
-        console.error('[Inference] 專業引擎推論失敗:', e);
-        throw e;
-    }
+
+        // 發送初始化訊息 (由 Worker 在內部載入模型以節省主執行緒記憶體)
+        worker.postMessage({
+            type: 'INIT',
+            payload: {
+                modelId: config.id,
+                modelUrl: config.url,
+                backend: document.body.dataset.backend || 'webgpu'
+            }
+        });
+
+        // 取消監聽
+        signal?.addEventListener('abort', () => {
+            worker?.postMessage({ type: 'ABORT' });
+            worker?.terminate();
+            worker = null;
+            reject(new Error('已取消'));
+        });
+    });
 }

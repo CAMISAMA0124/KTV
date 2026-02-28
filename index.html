@@ -33,8 +33,9 @@
 
         <header class="app-header">
             <div class="logo">
-                <span class="logo-icon">🎵</span>
-                <span class="logo-text">一鍵歡唱 <span class="accent">KTV</span></span>
+                <img src="./logo.png" alt="Logo" class="app-logo"
+                    style="width: 38px; height: 38px; border-radius: 12px; object-fit: cover;">
+                <span class="logo-text">Premium <span class="accent" style="color: var(--accent);">KTV</span></span>
             </div>
             <div class="header-actions">
                 <div id="env-badges" class="env-badges"></div>
@@ -44,6 +45,7 @@
                 </button>
             </div>
         </header>
+
 
         <!-- Engine Settings Overlay (The Drawer) -->
         <div id="engine-drawer" class="engine-drawer">
@@ -89,8 +91,8 @@
         <main class="container">
             <!-- Hero Section -->
             <section class="hero">
-                <h1 class="hero-title">在 <span class="gradient-text">iPhone 本地</span><br>一鍵歡唱KTV</h1>
-                <p class="hero-sub">人聲 · 伴奏 · 一鍵切換 · GPU 加速</p>
+                <h1 class="hero-title">歌曲 <span class="gradient-text">AI 分離</span><br>即時演唱KTV</h1>
+                <p class="hero-sub">人聲 · 伴奏 · 一鍵切換 · 本地 GPU 加速</p>
                 <div class="vocal-wave">
                     <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
                 </div>
@@ -111,8 +113,8 @@
                     <div class="local-upload-area" style="margin-top: 16px; text-align: center;">
                         <input type="file" id="local-file-input" accept="audio/*,video/*" style="display: none;" />
                         <button class="btn btn-secondary" onclick="document.getElementById('local-file-input').click()"
-                            style="width: 100%; border: 1px dashed rgba(255,255,255,0.3); background: transparent; padding: 14px; border-radius: 12px; color: var(--text-2); cursor: pointer; transition: 0.2s;">
-                            📁 本地音檔分析 (支援 mp3, m4a, wav)
+                            style="width: 100%; border: 2px dashed rgba(167,139,250,0.4); background: rgba(167,139,250,0.05); padding: 16px; border-radius: 16px; color: var(--text-2); cursor: pointer; transition: 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; font-size:0.9rem; font-weight:600;">
+                            📁 <span>本地音檔分析 <span style="opacity:0.5; font-size:0.75rem">(mp3 / m4a / wav)</span></span>
                         </button>
                     </div>
 
@@ -148,12 +150,17 @@
                     style="font-size: 1.25rem; font-weight: 800; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
                     <span style="color: var(--accent);">✨</span> 選擇處理模式
                 </h2>
+                <!-- Step hint: shown when file is attached -->
+                <div id="mode-file-hint"
+                    style="display:none; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.2); border-radius: 12px; padding: 10px 14px; margin-bottom:16px; font-size:0.8rem; color: rgba(255,255,255,0.7);">
+                    ✅ 已載入音檔，請選擇分析模式
+                </div>
                 <div class="mode-stack" style="display: flex; flex-direction: column; gap: 12px;">
                     <button id="mode-quick" class="mode-tile">
                         <div class="mode-tile-icon quick">⚡</div>
                         <div class="mode-tile-body">
                             <div class="mode-tile-title">快速去人聲 (模板) <span class="badge">推薦</span></div>
-                            <div class="mode-tile-desc">瞬間完成，適合一般娛樂導唱</div>
+                            <div class="mode-tile-desc">瞬間完成，中置聲道消去法</div>
                         </div>
                         <div class="mode-tile-arrow">→</div>
                     </button>
@@ -161,14 +168,14 @@
                     <button id="mode-ai" class="mode-tile">
                         <div class="mode-tile-icon ai">🧠</div>
                         <div class="mode-tile-body">
-                            <div class="mode-tile-title">AI 分離 (高品質)</div>
-                            <div class="mode-tile-desc">高保真音質，適合製作正式伴奏</div>
+                            <div class="mode-tile-title">AI 深度分離 (高品質)</div>
+                            <div class="mode-tile-desc">htdemucs 4-stem，適合正式伴奏</div>
                         </div>
                         <div class="mode-tile-arrow">→</div>
                     </button>
                 </div>
                 <p style="margin-top: 16px; font-size: 0.8rem; color: var(--text-3); text-align: center;">
-                    💡 若快速模式效果不佳，請嘗試 AI 高品質版。
+                    💡 快速模式瞬間完成；AI 模式需 3-15 分鐘但品質更佳
                 </p>
             </section>
 

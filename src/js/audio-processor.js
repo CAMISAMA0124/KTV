@@ -129,37 +129,81 @@ export function sliceIntoChunks(left, right, config) {
 }
 
 /**
- * 快速模板去人聲 (中置聲道抵消法)
- * 原理：大部分人聲位在正中間 (L=R)，透過 L-R 可抵消人聲
- * @param {Float32Array} left 
- * @param {Float32Array} right 
- * @returns {object} { vocals, accompaniment }
+ * 快速模板去人聲 v2.1 — 深度調教版 (Non-AI)
+ *
+ * 調教細節：
+ *  1. 主聲道提取 (Center Channel Extraction)
+ *  2. 帶通濾波 (Band-pass Filter): 300Hz - 8000Hz 保留人聲核心頻率，去除 Kick/Bass 低音干擾
+ *  3. 立體聲擴展 (Stereo Widening): 為伴奏增加寬度，營造空間感
+ *  4. 能量平衡控制，避免雜訊過大
+ *
+ * @param {Float32Array} left
+ * @param {Float32Array} right
+ * @returns {{ vocals: {left, right}, accompaniment: {left, right} }}
  */
 export function quickVocalRemoval(left, right) {
     const len = left.length;
-    const accompanimentLeft = new Float32Array(len);
-    const accompanimentRight = new Float32Array(len);
-    const vocalsLeft = new Float32Array(len);
-    const vocalsRight = new Float32Array(len);
+    const vL = new Float32Array(len);
+    const vR = new Float32Array(len);
+    const aL = new Float32Array(len);
+    const aR = new Float32Array(len);
+
+    // 參數設計
+    const ALPHA = 0.95; // 人聲抵消係數
+    const WIDEN = 0.2;  // 伴奏擴寬係數
+
+    // 帶通濾波器狀態 (簡單 IIR 模型)
+    let lp = 0, hp = 0;
+    const rcHP = 1.0 / (2 * Math.PI * 300);    // 300Hz High Pass
+    const rcLP = 1.0 / (2 * Math.PI * 8500);   // 8500Hz Low Pass
+    const dt = 1.0 / 44100;
+    const alphaHP = rcHP / (rcHP + dt);
+    const alphaLP = dt / (rcLP + dt);
 
     for (let i = 0; i < len; i++) {
-        // 伴奏 = L - R (簡單抵消)
-        const diff = left[i] - right[i];
-        accompanimentLeft[i] = diff;
-        accompanimentRight[i] = diff;
+        const l = left[i];
+        const r = right[i];
 
-        // 人聲 = (L + R) / 2 (取出中間成分)
-        // 注意：這不是完美的人聲提取，僅作為快速模板的對照
-        const center = (left[i] + right[i]) / 2;
-        vocalsLeft[i] = center;
-        vocalsRight[i] = center;
+        // 提取中置分量 (人聲通常在中間)
+        const center = (l + r) * 0.5;
+
+        // --- 人聲通道優化：帶通濾波 ---
+        // High Pass 300Hz
+        hp = alphaHP * (hp + center - (i > 0 ? (left[i - 1] + right[i - 1]) * 0.5 : 0));
+        // Low Pass 8.5kHz
+        lp = lp + alphaLP * (hp - lp);
+        const filteredVocal = lp;
+
+        vL[i] = filteredVocal;
+        vR[i] = filteredVocal;
+
+        // --- 伴奏通道優化：抵消中置 + 立體聲擴展 ---
+        // 抵消 center 分量
+        let sideL = l - center * ALPHA;
+        let sideR = r - center * ALPHA;
+
+        // 增加立體聲分離度 (Mid-Side processing)
+        const mid = (sideL + sideR) * 0.5;
+        const side = (sideL - sideR) * 0.5;
+
+        // 增強 side，減弱 mid
+        aL[i] = mid + side * (1.0 + WIDEN);
+        aR[i] = mid - side * (1.0 + WIDEN);
+    }
+
+    // 最終裁切限幅
+    for (let i = 0; i < len; i++) {
+        aL[i] = Math.max(-1, Math.min(1, aL[i]));
+        aR[i] = Math.max(-1, Math.min(1, aR[i]));
     }
 
     return {
-        vocals: { left: vocalsLeft, right: vocalsRight },
-        accompaniment: { left: accompanimentLeft, right: accompanimentRight }
+        vocals: { left: vL, right: vR },
+        accompaniment: { left: aL, right: aR }
     };
 }
+
+
 
 /**
  * 格式化時間 (MM:SS)
