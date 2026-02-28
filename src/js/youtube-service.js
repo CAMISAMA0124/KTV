@@ -52,7 +52,14 @@ async function fetchWithFailover(path, options = {}) {
 
     for (const base of endpoints) {
         try {
-            const url = base === '' ? `/api${path}` : `${base}/api${path}`;
+            let url;
+            if (base === '') {
+                url = `/api${path}`;
+            } else if (base.includes('onrender.com') || base.includes('loca.lt')) {
+                url = `${base}${path}`;
+            } else {
+                url = `${base}/api${path}`;
+            }
             console.log(`[Failover] Trying: ${url}`);
 
             const isVercel = base === '';
@@ -71,8 +78,11 @@ async function fetchWithFailover(path, options = {}) {
             });
             clearTimeout(timeoutId);
 
-            if (!res.ok && (res.status >= 500 || res.status === 429)) {
-                throw new Error(`API_ERROR_${res.status}`);
+            if (!res.ok) {
+                // Trigger failover for server errors, rate limiting, and missing endpoints (404)
+                if (res.status === 404 || res.status === 429 || res.status >= 500) {
+                    throw new Error(`API_ERROR_${res.status}`);
+                }
             }
 
             return res;
@@ -178,8 +188,14 @@ export async function checkAPIHealth() {
         const endpoints = getEffectiveEndpoints();
         for (const base of endpoints) {
             try {
-                // '' = Vercel same-origin /api route
-                const url = base === '' ? '/api/health' : `${base.replace(/\/$/, '')}/api/health`;
+                let url;
+                if (base === '') {
+                    url = '/api/health';
+                } else if (base.includes('onrender.com') || base.includes('loca.lt')) {
+                    url = `${base.replace(/\/$/, '')}/health`;
+                } else {
+                    url = `${base.replace(/\/$/, '')}/api/health`;
+                }
                 const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
                 const data = await res.json();
                 if (data.ok || data.status === 'ok') {

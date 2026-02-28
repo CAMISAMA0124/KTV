@@ -20,12 +20,12 @@ app.options('*', cors());
 let isReady = false;
 
 // ── Health Check ───────────────────────────────────────────
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
     res.json({ ok: true, status: 'ok', ready: isReady, timestamp: new Date() });
 });
 
 // ── Search ─────────────────────────────────────────────────
-app.post('/search', async (req, res) => {
+app.post(['/search', '/api/search'], async (req, res) => {
     const { query } = req.body;
     const overrides = {
         cookies: req.headers['x-youtube-cookies'],
@@ -41,7 +41,7 @@ app.post('/search', async (req, res) => {
 });
 
 // ── Extract ────────────────────────────────────────────────
-app.post('/extract', async (req, res) => {
+app.post(['/extract', '/api/extract'], async (req, res) => {
     const { url } = req.body;
     const overrides = {
         cookies: req.headers['x-youtube-cookies'],
