@@ -1,10 +1,10 @@
 /**
  * src/js/youtube-service.js
- * (v23 "World-Wide Swarm" - Zero-Backend Resilience)
+ * (v24 "Smart Hybrid" - Proactive Proxying)
  * 萬無一失策略：
- * 1. 徹底放棄依賴會被封殺的 Vercel / LocalTunnel IP。
- * 2. 由手機端直接同步請求全球 8 個以上的 Invidious/Piped API 節點。
- * 3. 這些公共節點天生支援跨網域 (CORS)，且全球分佈，YouTube 根本擋不完。
+ * 1. 搜尋與詳情：回流後端 (Vercel/Local)。透過代理避開 CORS 地雷。
+ * 2. 只有在搜尋失敗時，才啟動前端公共節點備援。
+ * 3. 移除所有觸發 Preflight 的標頭。
  */
 
 export const EngineConfig = {
@@ -17,16 +17,9 @@ export const EngineConfig = {
     save(config) { localStorage.setItem('ktv_engine_config', JSON.stringify(config)); }
 };
 
-// 全球分佈式 API 節點 (這些節點通常對手機連線完全開放)
-const PUBLIC_NODES = [
-    'https://inv.vern.cc',
-    'https://invidious.nerdvpn.de',
-    'https://invidious.privacydev.net',
-    'https://invidious.flokinet.to',
-    'https://pipedapi.lunar.icu',
-    'https://api-piped.mha.fi',
-    'https://yt.artemislena.eu',
-    'https://invidious.projectsegfau.lt'
+const EXTERNAL_BACKENDS = [
+    'https://wicked-maps-return.loca.lt',
+    'https://ktv-ey9t.onrender.com'
 ];
 
 /** 輔助：提取 Video ID */
@@ -40,37 +33,64 @@ export function isYouTubeURL(url) {
     return !!getYouTubeId(url);
 }
 
-/** 核心蜂群連線：自動尋找活著的全球節點 */
-async function swarmFetch(path, options = {}) {
-    const promises = PUBLIC_NODES.map(async (base) => {
-        try {
-            const url = `${base}${path}`;
-            console.log(`[v23 Swarm] Probing Node: ${base}`);
-            const res = await fetch(url, { ...options, signal: AbortSignal.timeout(5000) });
-            if (res.ok) {
-                const data = await res.json();
-                console.log(`[v23 Swarm] Node Success! -> ${base}`);
-                return data;
-            }
-        } catch (e) { }
-        throw new Error('fail');
-    });
+/** 核心基礎：智慧代理請求 */
+async function apiRequest(path, options = {}) {
+    const config = EngineConfig.load();
+    const list = ['', config.backend, ...EXTERNAL_BACKENDS].filter(b => b !== null && b !== '');
 
-    try {
-        return await Promise.any(promises);
-    } catch (e) {
-        throw new Error('全球節點同步斷線，請檢查網路。');
+    // Vercel 優先
+    const finalList = ['', ...list];
+
+    let lastError = null;
+    for (const base of finalList) {
+        try {
+            const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
+            const isLocalTunnel = base.includes('loca.lt');
+            let finalPath = path;
+
+            // 嚴禁自定義標頭，確保為過渡 "Simple Request"
+            const headers = { 'Accept': 'application/json' };
+
+            if (isLocalTunnel && !path.includes('.json')) {
+                const [p, q] = path.split('?');
+                finalPath = `${p}.json${q ? '?' + q : ''}`;
+            }
+
+            const url = base === '' ? `/api${finalPath}` : `${cleanBase}/api${finalPath}`;
+
+            const fetchOptions = {
+                ...options,
+                headers: { ...headers, ...(options.headers || {}) },
+                mode: 'cors'
+            };
+
+            // GET 請求不帶 Content-Type
+            if (!options.method || options.method === 'GET') delete fetchOptions.headers['Content-Type'];
+
+            console.log(`[v24 API] Try: ${url}`);
+            const res = await fetch(url, { ...fetchOptions, signal: AbortSignal.timeout(10000) });
+            if (res.ok) return res;
+        } catch (e) {
+            lastError = e;
+        }
     }
+    throw lastError || new Error('後端服務皆不可用');
 }
 
-/** 輸出 1：搜尋歌曲 (直接連向全球搜尋 API) */
+/** 輸出 1：搜尋歌曲 (回流代理模式) */
 export async function searchYouTube(query) {
-    console.log(`[v23 Swarm] Searching: ${query}`);
-    // 同時嘗試 Invidious 與 Piped 格式
     try {
-        const data = await swarmFetch(`/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
-        // Invidious 格式轉為本地格式
-        return (data || []).slice(0, 10).map(v => ({
+        const res = await apiRequest(`/search?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        return data.results || [];
+    } catch (e) {
+        console.warn('[v24] Backend search failed, using public fallback...');
+        // 如果後端掛了，最後一招：用 allorigins 包裹 Invidious
+        const mirrored = `https://api.allorigins.win/get?url=${encodeURIComponent('https://inv.vern.cc/api/v1/search?q=' + query + '&type=video')}`;
+        const res = await fetch(mirrored);
+        const data = await res.json();
+        const items = JSON.parse(data.contents);
+        return items.slice(0, 10).map(v => ({
             id: v.videoId,
             url: `https://www.youtube.com/watch?v=${v.videoId}`,
             title: v.title,
@@ -78,57 +98,60 @@ export async function searchYouTube(query) {
             thumbnail: v.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`,
             duration: v.lengthSeconds
         }));
-    } catch (e) {
-        // 退回 Piped 格式再試
-        const data = await swarmFetch(`/search?q=${encodeURIComponent(query)}&filter=videos`);
-        return (data.items || []).slice(0, 10).map(v => ({
-            id: v.url.split('=')[1],
-            url: `https://www.youtube.com/watch?v=${v.url.split('=')[1]}`,
-            title: v.title,
-            uploader: v.uploaderName,
-            thumbnail: v.thumbnail,
-            duration: v.duration
-        }));
     }
 }
 
 /** 輸出 2：獲取影片詳情 */
 export async function fetchVideoInfo(url) {
-    const videoId = getYouTubeId(url);
-    if (!videoId) throw new Error('網址格式錯誤');
-
-    const data = await swarmFetch(`/api/v1/videos/${videoId}`);
-    return {
-        id: videoId,
-        title: data.title,
-        uploader: data.author,
-        thumbnail: data.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-        duration: data.lengthSeconds
-    };
+    try {
+        const res = await apiRequest(`/search?query=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (data.results?.[0]) return data.results[0];
+        throw new Error('Not found');
+    } catch (e) {
+        const videoId = getYouTubeId(url);
+        return {
+            id: videoId,
+            title: 'YouTube 歌曲',
+            uploader: '系統偵測',
+            thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+            duration: 0
+        };
+    }
 }
 
-/** 輸出 3：核心功能！直接驅動全球節點進行音檔下載 (萬無一失) */
+/** 輸出 3：擷取音檔 (智慧備援) */
 export async function extractFromURL(url, onProgress, signal) {
     const videoId = getYouTubeId(url);
 
-    // A. 找尋音軌網址
-    const getBestStream = async () => {
-        const streamData = await swarmFetch(videoId.length === 11 ? `/api/v1/videos/${videoId}` : `/streams/${videoId}`);
-        // 優先找 Invidious Adaptive格式
-        let stream = streamData.adaptiveFormats?.find(f => f.type.includes('audio/mp4'))?.url ||
-            streamData.audioStreams?.find(f => f.format === 'M4A')?.url ||
-            streamData.formatStreams?.find(f => f.quality === 'medium')?.url;
-        return stream;
+    // A. 優先從後端獲得下載鏈結
+    const getLink = async () => {
+        const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (!data.url) throw new Error('No link from proxy');
+        return data.url;
     };
 
-    const streamUrl = await getBestStream();
-    if (!streamUrl) throw new Error('無法從全球節點獲取有效音軌');
+    let streamUrl;
+    try {
+        streamUrl = await getLink();
+    } catch (e) {
+        // 全球強效備援：透過 allorigins 抓取 Invidious 流
+        console.warn('[v24] Proxy link failed, using Swarm-Mirror...');
+        const mirr = `https://api.allorigins.win/get?url=${encodeURIComponent('https://inv.vern.cc/api/v1/videos/' + videoId)}`;
+        const res = await fetch(mirr);
+        const data = await res.json();
+        const json = JSON.parse(data.contents);
+        streamUrl = json.adaptiveFormats?.find(f => f.type.includes('audio/mp4'))?.url;
+    }
 
-    // B. 從手機端啟動流式下載 (不再經過任何後端)
+    if (!streamUrl) throw new Error('無法取得音軌。YouTube 封鎖太強，請手動下載音檔上傳。');
+
+    // B. 下載流程
     const response = await fetch(streamUrl, { signal });
-    if (!response.ok) throw new Error('全球音訊流伺服器拒絕連線');
+    if (!response.ok) throw new Error('音訊伺服器拒絕手機連線');
 
-    const total = parseInt(response.headers.get('content-length'), 10) || 12000000;
+    const total = parseInt(response.headers.get('content-length'), 10) || 10000000;
     let loaded = 0;
     const reader = response.body.getReader();
     const chunks = [];
@@ -140,12 +163,16 @@ export async function extractFromURL(url, onProgress, signal) {
         loaded += value.length;
         if (onProgress) onProgress((loaded / total) * 100);
     }
-
     const blob = new Blob(chunks, { type: 'audio/mpeg' });
     return new File([blob], `${videoId}.mp3`, { type: 'audio/mpeg' });
 }
 
-/** 簡單健康檢查 (純前端模式總網亮路燈) */
+/** 健康檢查 */
 export async function checkAPIHealth() {
-    return { ok: true, ready: true }; // V23 全天候待命
+    try {
+        const res = await apiRequest('/health', { signal: AbortSignal.timeout(3000) });
+        return { ok: res.ok, ready: true };
+    } catch (e) {
+        return { ok: false, ready: false };
+    }
 }

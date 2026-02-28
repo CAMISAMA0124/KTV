@@ -19,12 +19,13 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Middleware ──────────────────────────────────────────────
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Bypass-Tunnel-Reminder', 'Accept', 'X-Youtube-Cookies'],
-    exposedHeaders: ['Content-Length', 'Content-Type']
-}));
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Bypass-Tunnel-Reminder, X-Youtube-Cookies');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
 app.use(express.json());
 
 // ── 提供靜態文件 (Vite 構建輸出) ──────────────────────────────
