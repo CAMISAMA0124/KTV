@@ -1,7 +1,7 @@
 /**
  * src/js/youtube-service.js
- * YouTube 服務模組 — (v8 Ultimate - Pure Client-Side Proxy)
- * 解決所有 CORS 與 502/404 問題，達成真正的「一鍵全自動」
+ * YouTube 服務模組 — (v9 Nuclear Failover)
+ * 解決 HTML 污染、CORS 阻斷、API 封鎖，達成真正的「一鍵全自動」
  */
 
 export const EngineConfig = {
@@ -22,134 +22,132 @@ const EXTERNAL_BACKENDS = [
     'https://wicked-maps-return.loca.lt'
 ];
 
-function getEffectiveEndpoints() {
-    const config = EngineConfig.load();
-    const top = config.backend ? [config.backend] : [];
-    return [...new Set([...top, ...SAME_ORIGIN_API, ...EXTERNAL_BACKENDS])];
-}
-
 async function fetchWithFailover(path, options = {}) {
-    const endpoints = getEffectiveEndpoints();
+    const config = EngineConfig.load();
+    const list = config.backend ? [config.backend, ...SAME_ORIGIN_API, ...EXTERNAL_BACKENDS] : [...SAME_ORIGIN_API, ...EXTERNAL_BACKENDS];
+    const endpoints = [...new Set(list)];
     let lastError = null;
 
     for (const base of endpoints) {
         try {
             const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
             const url = base === '' ? `/api${path}` : `${cleanBase}/api${path}`;
-            console.log(`[Failover] Trying: ${url}`);
-
             const controller = new AbortController();
-            const sid = setTimeout(() => controller.abort(), 10000);
+            const sid = setTimeout(() => controller.abort(), 8000);
 
             const res = await fetch(url, {
                 ...options,
-                headers: { ...options.headers, 'Bypass-Tunnel-Reminder': 'true' },
+                headers: { ...options.headers, 'Content-Type': 'application/json' },
                 signal: options.signal || controller.signal
             });
             clearTimeout(sid);
             if (res.ok) return res;
-        } catch (e) {
-            lastError = e;
-            console.warn(`[Failover] Backend ${base} failed: ${e.message}`);
-        }
+            if (res.status === 404) continue; // Skip to next if not implemented
+        } catch (e) { lastError = e; }
     }
-    throw lastError || new Error('後端暫時不可用');
+    throw lastError || new Error('後端服務忙碌中');
 }
 
 export async function searchYouTube(query) {
-    const res = await fetchWithFailover('/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-    });
+    const res = await fetchWithFailover('/search', { method: 'POST', body: JSON.stringify({ query }) });
     const data = await res.json();
     return data.results || [];
 }
 
 export async function fetchVideoInfo(url) {
-    const res = await fetchWithFailover('/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-    });
+    const res = await fetchWithFailover('/info', { method: 'POST', body: JSON.stringify({ url }) });
     const data = await res.json();
     return data.info;
 }
 
 /**
- * 【v8 核心】超強健擷取引擎
- * 完全依賴公用 GET 代理，繞過所有 CORS 攔截
+ * 【v9 核心】超強健自動化下載
  */
 export async function extractFromURL(url, onProgress, signal) {
     onProgress?.(5);
     const videoId = url.match(/(?:v=|\/embed\/|\/1\/|\/v\/|https:\/\/youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
 
-    // 鏡像站池 (這些站點 API 較穩定)
-    const INVIDIOUS_INSTANCES = [
-        'https://inv.vern.cc',
-        'https://invidious.asir.dev',
-        'https://yewtu.be',
-        'https://iv.melmac.space'
+    // 代理池與解析器
+    const PROXIES = [
+        (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+        (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
     ];
 
-    console.log('[Extract] Starting v8 Pure Proxy Flow...');
+    // 獲取並驗證 JSON 的安全函式 (防止 Unexpected Token <)
+    const secureJsonGet = async (targetUrl) => {
+        for (const proxyFn of PROXIES) {
+            try {
+                const pUrl = proxyFn(targetUrl);
+                console.log(`[v9] Trying Meta-Fetch: ${pUrl}`);
+                const res = await fetch(pUrl, { signal: AbortSignal.timeout(6000) });
+                if (!res.ok) continue;
 
-    // ── 第一階段：獲取下載連結 (透過 AllOrigins 代理 GET，100% 避開 CORS) ──
-    for (const base of INVIDIOUS_INSTANCES) {
-        try {
-            const targetApi = `${base}/api/v1/videos/${videoId}?fields=adaptiveFormats,title`;
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`;
+                const raw = await res.json();
+                // AllOrigins 包裝在 contents，CodeTabs 則直接返回
+                const content = raw.contents || (typeof raw === 'string' ? raw : JSON.stringify(raw));
 
-            console.log(`[Extract] Trying Invidious via Proxy: ${base}`);
-            const res = await fetch(proxyUrl, { signal });
-            if (!res.ok) continue;
-
-            const proxyData = await res.json();
-            const videoData = JSON.parse(proxyData.contents); // AllOrigins 包裝在 contents 裡
-
-            // 尋找音訊軌 (優先找 m4a/mp4)
-            const formats = videoData.adaptiveFormats || [];
-            const audio = formats.find(f => f.type.includes('audio/mp4')) || formats.find(f => f.type.startsWith('audio'));
-
-            if (audio && audio.url) {
-                console.log('[Extract] Found stream URL, downloading blob...');
-                onProgress?.(30);
-
-                // ── 第二階段：下載音軌 (再次透過 AllOrigins 繞過媒體跨域) ──
-                const mediaProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(audio.url)}`;
-                const mediaRes = await fetch(mediaProxyUrl, { signal });
-
-                if (mediaRes.ok) {
-                    return await _readStreamToFile(mediaRes, 'youtube_audio.m4a', onProgress);
+                if (content && content.trim().startsWith('{')) {
+                    return JSON.parse(content);
                 }
-            }
-        } catch (e) {
-            console.warn(`[Extract] Strategy failed for ${base}:`, e.message);
+            } catch (e) { console.warn(`[v9] Proxy attempt failed: ${e.message}`); }
         }
+        return null;
+    };
+
+    // ── 第一波：Piped API (最穩的 GET 源) ──
+    const PIPED_INSTANCES = ['https://pipedapi.kavin.rocks', 'https://api.piped.victr.me'];
+    for (const base of PIPED_INSTANCES) {
+        try {
+            const data = await secureJsonGet(`${base}/streams/${videoId}`);
+            if (data && data.audioStreams && data.audioStreams.length > 0) {
+                const stream = data.audioStreams.find(s => s.format === 'M4A' || s.extension === 'm4a') || data.audioStreams[0];
+                console.log('[v9] Success! Stream found via Piped.');
+                return await _smartMediaFetch(stream.url, onProgress, signal);
+            }
+        } catch (e) { }
     }
 
-    // ── 最終備援：如果公用代理全掛，嘗試自己的雲端 Proxy ──
+    // ── 第二波：Invidious API ──
     try {
-        console.log('[Extract] Last resort: Backend Proxy...');
-        const res = await fetchWithFailover('/proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url }),
-            signal
-        });
-        if (res.ok) {
-            const data = await res.json();
-            if (data.url) {
-                const finalRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(data.url)}`, { signal });
-                return await _readStreamToFile(finalRes, 'audio.m4a', onProgress);
+        const data = await secureJsonGet(`https://inv.vern.cc/api/v1/videos/${videoId}`);
+        if (data && data.adaptiveFormats) {
+            const stream = data.adaptiveFormats.find(f => f.type.includes('audio/mp4')) || data.adaptiveFormats.find(f => f.type.startsWith('audio'));
+            if (stream && stream.url) {
+                console.log('[v9] Success! Stream found via Invidious.');
+                return await _smartMediaFetch(stream.url, onProgress, signal);
             }
         }
     } catch (e) { }
 
-    throw new Error('自動擷取服務因 YouTube 高強度防護暫時離線。\n請下載影片後，使用「本地音檔分析」按鈕處理。');
+    // ── 第三波：自己的後端 Proxy (備援) ──
+    try {
+        onProgress?.(15);
+        const res = await fetchWithFailover('/proxy', { method: 'POST', body: JSON.stringify({ url }) });
+        const data = await res.json();
+        if (data.url) return await _smartMediaFetch(data.url, onProgress, signal);
+    } catch (e) { }
+
+    throw new Error('自動化擷取引擎暫時被 YouTube 強力阻截。\n請下載音檔後，點擊「本地音檔分析」手動分析。');
 }
 
-/** 串流下載輔助 */
+/** 獲取媒體 Blob - 支援全自動 Failover */
+async function _smartMediaFetch(streamUrl, onProgress, signal) {
+    console.log(`[v9] Downloading Media Blob...`);
+    onProgress?.(30);
+    try {
+        // 先直連 (媒體通常沒 CORS)
+        const res = await fetch(streamUrl, { signal });
+        if (res.ok) return await _readStreamToFile(res, 'audio.m4a', onProgress);
+    } catch { }
+
+    // 直連失敗，套用 RAW 代理
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(streamUrl)}`;
+    const res2 = await fetch(proxyUrl, { signal });
+    if (res2.ok) return await _readStreamToFile(res2, 'audio.m4a', onProgress);
+
+    throw new Error('媒體下載鏈路被切斷');
+}
+
 async function _readStreamToFile(response, defaultName, onProgress) {
     const contentLength = +response.headers.get('Content-Length');
     const reader = response.body.getReader();
@@ -162,12 +160,10 @@ async function _readStreamToFile(response, defaultName, onProgress) {
         chunks.push(value);
         received += value.length;
         if (contentLength) {
-            const pct = 10 + (received / contentLength) * 90;
-            onProgress?.(Math.min(99, pct));
+            onProgress?.(10 + (received / contentLength) * 90);
         }
     }
 
-    onProgress?.(100);
     const blob = new Blob(chunks, { type: 'audio/mp4' });
     return new File([blob], defaultName, { type: 'audio/mp4' });
 }
@@ -181,17 +177,8 @@ export function isYouTubeURL(str) {
 
 export async function checkAPIHealth() {
     try {
-        const endpoints = getEffectiveEndpoints();
-        for (const base of endpoints) {
-            try {
-                let url = base === '' ? '/api/health' : `${base.replace(/\/$/, '').replace(/\/api$/, '')}/api/health`;
-                const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.ok) return { ok: true, ready: true };
-                }
-            } catch { continue; }
-        }
+        const res = await fetchWithFailover('/health', { signal: AbortSignal.timeout(3000) });
+        const data = await res.json();
+        return { ok: !!data.ok, ready: true };
     } catch { return { ok: false, ready: false }; }
-    return { ok: false, ready: false };
 }
