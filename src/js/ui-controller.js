@@ -234,29 +234,28 @@ export class UIController {
             }
         });
 
-        // ── 隧道授權助手 (V33) ──
+        // ── 隧道授權助手 (V31) ──
         window.addEventListener('tunnel-auth-required', (e) => {
             const tunnelUrl = e.detail.url;
-            // 找到橙色框對應的區域 (搜尋狀態列)
             const statusBar = document.querySelector('.search-status-bar');
 
-            if (!document.getElementById('auth-panel-v33')) {
+            if (!document.getElementById('auth-panel-v31')) {
                 const panel = document.createElement('div');
-                panel.id = 'auth-panel-v33';
+                panel.id = 'auth-panel-v31';
                 panel.style.cssText = 'width:90%; margin: 5px auto 15px auto; padding: 15px; background: rgba(244,114,182,0.1); border: 2px solid var(--accent-pink); border-radius: 20px; text-align: center; animation: bounce-in 0.5s;';
 
                 panel.innerHTML = `
-                    <div style="font-size:0.85rem; font-weight:700; color:var(--accent-pink); margin-bottom:10px;">🔒 家用後端需授權</div>
-                    <button class="btn btn-primary" style="padding:10px 20px; font-size:0.9rem; background:linear-gradient(135deg, #f472b6 0%, var(--accent) 100%); margin-bottom:12px;" onclick="window.open('${tunnelUrl}', '_blank')">🚀 開啟授權頁面 (點我登入)</button>
-                    <div style="font-size:0.8rem; color:var(--text-1);">
-                        密碼：<b id="pwd-v33" style="color:var(--accent-pink); text-decoration:underline; cursor:pointer; font-size:1rem;">1.165.235.235</b> (點擊複製)
-                        <br><span style="font-size:0.75rem; opacity:0.8; color:var(--text-2); display:block; margin-top:6px;">進入頁面後貼上密碼並點擊 <b>「Click to Submit」</b>。</span>
+                    <div style="font-size:0.85rem; font-weight:700; color:var(--accent-pink); margin-bottom:10px;">🔒 家用連線需授權</div>
+                    <button class="btn btn-primary" style="padding:10px 20px; font-size:0.9rem; background:linear-gradient(135deg, #f472b6 0%, var(--accent) 100%); margin-bottom:10px;" onclick="window.open('${tunnelUrl}', '_blank')">🚀 點我開啟授權頁面</button>
+                    <div style="font-size:0.8rem; color:var(--text-2);">
+                        密碼: <b id="pwd-text" style="color:#fff; text-decoration:underline; cursor:pointer;">1.165.235.235</b> (點我複製)
+                        <br><span style="font-size:0.7rem; opacity:0.6;">(若失敗請查主機 IP 或點 Continue)</span>
                     </div>
                 `;
 
-                panel.querySelector('#pwd-v33').onclick = () => {
+                panel.querySelector('#pwd-text').onclick = () => {
                     navigator.clipboard.writeText('1.165.235.235');
-                    this.setStatus('✅ 密碼已複製！請至網頁貼上');
+                    this.setStatus('✅ 密碼已複製！');
                 };
 
                 statusBar?.parentNode.insertBefore(panel, statusBar);
