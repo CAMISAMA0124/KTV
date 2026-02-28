@@ -1,9 +1,15 @@
-import yts from 'yt-search';
+// api/proxy.js
+// Vercel Serverless Function - Cobalt API Proxy
+// This handles the server-side metadata fetch to bypass browser CORS.
 
-// Proxy Cobalt JSON request to bypass CORS in browser
-// Since it's server-to-server, it won't hit CORS.
-// Since it's just a JSON request, it won't hit Vercel timeouts for heavy downloads.
 export default async function handler(req, res) {
+    if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        return res.status(200).end();
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
@@ -12,50 +18,39 @@ export default async function handler(req, res) {
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
     const COBALT_INSTANCES = [
-        'https://api.cobalt.tools/api/json',
         'https://co.wuk.sh/api/json',
+        'https://api.cobalt.tools/api/json',
         'https://cobalt.hypertube.xyz/api/json'
     ];
 
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') return res.status(200).end();
-
-    let lastError = null;
     for (const api of COBALT_INSTANCES) {
         try {
-            console.log(`[Vercel Proxy] Trying: ${api}`);
+            console.log(`[Vercel Proxy] Calling instance: ${api}`);
             const response = await fetch(api, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 },
-                body: JSON.stringify({
-                    url,
-                    aFormat,
-                    isAudioOnly,
-                    vQuality: '720'
-                }),
-                signal: AbortSignal.timeout(10000)
+                body: JSON.stringify({ url, aFormat, isAudioOnly, vQuality: '720' }),
+                signal: AbortSignal.timeout(8000)
             });
 
             if (response.ok) {
                 const data = await response.json();
                 return res.status(200).json(data);
             }
-            const errBody = await response.json().catch(() => ({}));
-            console.warn(`[Vercel Proxy] ${api} failed: ${errBody.text || response.status}`);
+            console.warn(`[Vercel Proxy] ${api} status: ${response.status}`);
         } catch (e) {
-            lastError = e;
             console.warn(`[Vercel Proxy] ${api} error: ${e.message}`);
         }
     }
 
     return res.status(502).json({
         error: 'COBALT_PROXY_FAILED',
-        message: lastError?.message || '所有 Cobalt 節點皆忙碌中'
+        message: '目前所有自動化引擎皆忙碌中，請稍後重試。'
     });
 }

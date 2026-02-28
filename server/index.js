@@ -102,28 +102,25 @@ app.post('/api/info', async (req, res) => {
 });
 
 // ── Cobalt Proxy (Solve Browser CORS) ────────────────────────
-// This allows the browser to call Cobalt via our backend, bypassing CORS.
-// Since it's a small JSON request, it won't hit Vercel timeouts or payload limits.
 app.post('/api/proxy', async (req, res) => {
-
     const { url, aFormat = 'mp3', isAudioOnly = true } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing URL' });
 
     const COBALT_INSTANCES = [
-        'https://api.cobalt.tools/api/json',
         'https://co.wuk.sh/api/json',
+        'https://api.cobalt.tools/api/json',
         'https://cobalt.hypertube.xyz/api/json'
     ];
 
-    let lastError = null;
     for (const api of COBALT_INSTANCES) {
         try {
-            console.log(`[Proxy] Trying Cobalt instance: ${api}`);
+            console.log(`[Proxy] Trying: ${api}`);
             const response = await fetch(api, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 },
                 body: JSON.stringify({ url, aFormat, isAudioOnly, vQuality: '720' }),
                 signal: AbortSignal.timeout(8000)
@@ -133,16 +130,14 @@ app.post('/api/proxy', async (req, res) => {
                 const data = await response.json();
                 return res.json(data);
             }
-            const err = await response.json().catch(() => ({}));
-            console.warn(`[Proxy] ${api} failed: ${err.text || response.status}`);
         } catch (e) {
-            lastError = e;
-            console.warn(`[Proxy] ${api} error: ${e.message}`);
+            console.warn(`[Proxy] Instance ${api} failed: ${e.message}`);
         }
     }
 
-    res.status(502).json({ error: 'COBALT_PROXY_FAILED', message: lastError?.message || '所有 Cobalt 節點皆忙碌中' });
+    res.status(502).json({ error: 'COBALT_PROXY_FAILED', message: '所有後端自動化實例皆忙碌中' });
 });
+
 
 // ── Extract audio (Redirected to Client) ──────────────────────
 app.post('/api/extract', async (req, res) => {
