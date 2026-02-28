@@ -158,6 +158,18 @@ export class UIController {
             }, 300);
         });
 
+        // Local Upload
+        const fileInput = document.getElementById('local-file-input');
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                this._selectedFile = file; // Store the selected file
+                this._showModeSelection();  // Show the AI/Quick mode prompt
+                this.setStatus(`✅ 已選擇音檔: ${file.name}，請選擇要處理的模式`);
+            });
+        }
+
         // URL / Search input
         this.$urlInput?.addEventListener('input', () => {
             const val = this.$urlInput.value.trim();
@@ -194,10 +206,10 @@ export class UIController {
 
         // Mode cards
         document.getElementById('mode-quick')?.addEventListener('click', () => {
-            this.emit('mode-selected', 'quick');
+            this.emit('mode-selected', 'quick', this._selectedFile, this._selectedVideo);
         });
         document.getElementById('mode-ai')?.addEventListener('click', () => {
-            this.emit('mode-selected', 'ai');
+            this.emit('mode-selected', 'ai', this._selectedFile, this._selectedVideo);
         });
 
         this.$resetBtn?.addEventListener('click', () => this.reset());
@@ -251,8 +263,7 @@ export class UIController {
                         <span>👤 ${video.uploader}</span>
                         <span>⏱️ ${this._formatSeconds(video.duration)}</span>
                     </div>
-                </div>
-                <button class="inline-extract-btn" style="display: none; margin-left: auto; align-self: center; padding: 12px 20px; border-radius: 20px; border: none; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%); color: #fff; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 5px 15px rgba(167, 139, 250, 0.3); transition: 0.3s; white-space: nowrap; flex-shrink: 0; align-items: center; justify-content: center;">匯入分析</button>
+                <button class="inline-extract-btn" style="display: none; margin-left: auto; align-self: center; padding: 12px 20px; border-radius: 20px; border: none; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%); color: #fff; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 5px 15px rgba(167, 139, 250, 0.3); transition: 0.3s; white-space: nowrap; flex-shrink: 0; align-items: center; justify-content: center;">🎵 前往下載</button>
             </div>
         `).join('');
 
@@ -279,18 +290,20 @@ export class UIController {
                 item.classList.add('selected');
                 if (btn) {
                     btn.style.display = 'flex';
-                    btn.textContent = !this._apiAvailable ? '⚠️連線異常' : '匯入分析';
-                    btn.disabled = !this._apiAvailable;
+                    btn.textContent = '🎵 複製網址並下載';
+                    btn.disabled = false;
                 }
             };
 
             if (btn) {
                 btn.onclick = (e) => {
                     e.stopPropagation(); // prevent item.onclick from firing again
-                    if (!this._apiAvailable) return;
-                    if (this._selectedVideo && this.state === UIState.IDLE) {
-                        this._showModeSelection();
-                    }
+                    navigator.clipboard.writeText(results[idx].url).catch(() => { });
+                    window.open('https://cobalt.tools/', '_blank');
+                    this.setStatus('已複製網址！請於下載完成後，點擊上方【📁 本地音檔分析】上傳檔案。');
+                    setTimeout(() => {
+                        this._resetURLPanel();
+                    }, 3000);
                 };
             }
         });
@@ -304,13 +317,16 @@ export class UIController {
         this.$videoDuration.textContent = `⏱️ ${this._formatSeconds(video.duration)}`;
         this.$videoPreview.style.display = 'flex';
         this.$extractBtn.style.display = 'inline-flex';
-        this.$extractBtn.disabled = !this._apiAvailable;
-
-        if (!this._apiAvailable) {
-            this.$extractBtn.textContent = '⚠️ 後端未啟動';
-        } else {
-            this.$extractBtn.textContent = '匯入並分析';
-        }
+        this.$extractBtn.textContent = '🎵 複製網址並前往下載';
+        this.$extractBtn.disabled = false;
+        this.$extractBtn.onclick = () => {
+            navigator.clipboard.writeText(video.url).catch(() => { });
+            window.open('https://cobalt.tools/', '_blank');
+            this.setStatus('已複製網址！請於下載完成後，點擊上方【📁 本地音檔分析】上傳檔案。');
+            setTimeout(() => {
+                this._resetURLPanel();
+            }, 3000);
+        };
         this.emit('video-selected', video);
     }
 

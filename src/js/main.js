@@ -182,9 +182,11 @@ ui.on('video-selected', (video) => {
     currentMetadata = video;
 });
 
-ui.on('mode-selected', (mode) => {
-    if (currentMetadata) {
-        processURL(currentMetadata.url, mode);
+ui.on('mode-selected', (mode, file, video) => {
+    if (file) {
+        processFile(file, video, mode);
+    } else if (video) {
+        ui.showError('請點選【🎵 複製網址並下載】自行下載後，再點擊【📁 本地音檔分析】上傳進行分析！');
     }
 });
 

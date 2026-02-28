@@ -1,15 +1,5 @@
 // api/info.js - Vercel Serverless Function to get video info
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { existsSync } from 'fs';
-
-const execFileAsync = promisify(execFile);
-
-function getYtDlpPath() {
-    const candidates = ['/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'yt-dlp'];
-    for (const p of candidates) { if (existsSync(p)) return p; }
-    return 'yt-dlp';
-}
+import yts from 'yt-search';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,15 +10,30 @@ export default async function handler(req, res) {
     if (!url) return res.status(400).json({ error: 'Missing url' });
 
     try {
-        const ytDlp = getYtDlpPath();
-        const { stdout } = await execFileAsync(ytDlp, [
-            url, '--dump-json',
-            '--no-cache-dir',
-            '--extractor-args', 'youtube:player-client=tv,android'
-        ], { timeout: 15000 });
+        const video = await yts(url);
+        if (!video.videos || video.videos.length === 0) {
+            if (video.title) {
+                return res.json({
+                    info: {
+                        title: video.title,
+                        duration: video.seconds || 0,
+                        thumbnail: video.thumbnail || video.image,
+                        uploader: video.author?.name || 'YouTube',
+                    }
+                });
+            }
+            return res.status(404).json({ error: 'Video not found' });
+        }
+        const v = video.videos[0];
 
-        const info = JSON.parse(stdout.trim());
-        return res.json({ info });
+        return res.json({
+            info: {
+                title: v.title,
+                duration: v.seconds,
+                thumbnail: v.thumbnail || v.image,
+                uploader: v.author?.name || 'YouTube',
+            }
+        });
     } catch (e) {
         console.error('[Vercel Info]', e.message);
         return res.status(500).json({ error: e.message });

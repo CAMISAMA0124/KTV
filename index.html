@@ -107,6 +107,15 @@
                             <button type="submit" id="search-btn" class="url-search-btn">🔍</button>
                         </div>
                     </form>
+
+                    <div class="local-upload-area" style="margin-top: 16px; text-align: center;">
+                        <input type="file" id="local-file-input" accept="audio/*,video/*" style="display: none;" />
+                        <button class="btn btn-secondary" onclick="document.getElementById('local-file-input').click()"
+                            style="width: 100%; border: 1px dashed rgba(255,255,255,0.3); background: transparent; padding: 14px; border-radius: 12px; color: var(--text-2); cursor: pointer; transition: 0.2s;">
+                            📁 本地音檔分析 (支援 mp3, m4a, wav)
+                        </button>
+                    </div>
+
                     <div class="search-status-bar">
                         <span id="search-status-dot" class="dot"></span>
                         <span id="search-status-text">載入中...</span>

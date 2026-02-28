@@ -101,47 +101,9 @@ app.post('/api/info', async (req, res) => {
     }
 });
 
-// ── Extract audio ───────────────────────────────────────────
+// ── Extract audio (Disabled) ─────────────────────────────────
 app.post('/api/extract', async (req, res) => {
-    const { url } = req.body;
-
-    if (!url || typeof url !== 'string') {
-        return res.status(400).json({ error: '請提供有效的 URL' });
-    }
-
-    if (!ytDlpReady) {
-        return res.status(503).json({ error: 'yt-dlp 尚未就緒，請稍候' });
-    }
-
-    if (!isYouTubeURL(url)) {
-        return res.status(400).json({
-            error: 'DRM_PROTECTED',
-            message: '目前只支援 YouTube 連結',
-        });
-    }
-
-    try {
-        console.log(`[Extract] Starting: ${url}`);
-
-        const { buffer, filename, info } = await extractAudio(url, (pct) => {
-            // Progress tracked server-side; client polls or waits for response
-            process.stdout.write(`\r[Extract] ${pct.toFixed(1)}%`);
-        });
-
-        console.log(`\n[Extract] Done: ${filename} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
-
-        // Send audio file as response
-        res.setHeader('Content-Type', 'audio/mp4');
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
-        res.setHeader('X-Video-Title', encodeURIComponent(info.title));
-        res.setHeader('X-Video-Duration', info.duration);
-        res.setHeader('Content-Length', buffer.length);
-        res.send(buffer);
-
-    } catch (e) {
-        console.error('[Extract] Error:', e.message);
-        res.status(500).json({ error: `擷取失敗: ${e.message}` });
-    }
+    return res.status(403).json({ error: '線上提取已被停用。請使用前端的「複製網址」自行下載並上傳本機音軌。' });
 });
 
 // ── Helpers ─────────────────────────────────────────────────
