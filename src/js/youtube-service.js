@@ -1,10 +1,10 @@
 /**
  * src/js/youtube-service.js
- * (v24 "Smart Hybrid" - Proactive Proxying)
- * 萬無一失策略：
- * 1. 搜尋與詳情：回流後端 (Vercel/Local)。透過代理避開 CORS 地雷。
- * 2. 只有在搜尋失敗時，才啟動前端公共節點備援。
- * 3. 移除所有觸發 Preflight 的標頭。
+ * (v25 "Legacy Restore" - Focused & Simplified)
+ * 本版回歸當時成功的邏輯：
+ * 1. 優先嘗試本地家用電腦 (透過 LocalTunnel)。
+ * 2. 嚴格遵守「簡單請求」規則，絕不發送自定義標頭，以避開 CORS 預檢與隧道攔截。
+ * 3. 搜尋功能回歸 Vercel (YouTube API)，這是最穩定的方案。
  */
 
 export const EngineConfig = {
@@ -33,23 +33,24 @@ export function isYouTubeURL(url) {
     return !!getYouTubeId(url);
 }
 
-/** 核心基礎：智慧代理請求 */
+/** 核心基礎：極簡請求 (避開 CORS 與 511) */
 async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
-    const list = ['', config.backend, ...EXTERNAL_BACKENDS].filter(b => b !== null && b !== '');
-
-    // Vercel 優先
-    const finalList = ['', ...list];
+    const list = [config.backend, ...EXTERNAL_BACKENDS, ''].filter(b => b !== null && b !== '');
 
     let lastError = null;
-    for (const base of finalList) {
+    for (const base of list) {
         try {
             const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
             const isLocalTunnel = base.includes('loca.lt');
             let finalPath = path;
 
-            // 嚴禁自定義標頭，確保為過渡 "Simple Request"
-            const headers = { 'Accept': 'application/json' };
+            // 核心：如果是 LocalTunnel，絕對不能有標頭 (避免 Preflight)
+            const headers = {};
+            if (!isLocalTunnel) {
+                headers['Accept'] = 'application/json';
+                if (options.method === 'POST') headers['Content-Type'] = 'application/json';
+            }
 
             if (isLocalTunnel && !path.includes('.json')) {
                 const [p, q] = path.split('?');
@@ -64,92 +65,60 @@ async function apiRequest(path, options = {}) {
                 mode: 'cors'
             };
 
-            // GET 請求不帶 Content-Type
-            if (!options.method || options.method === 'GET') delete fetchOptions.headers['Content-Type'];
-
-            console.log(`[v24 API] Try: ${url}`);
             const res = await fetch(url, { ...fetchOptions, signal: AbortSignal.timeout(10000) });
             if (res.ok) return res;
+
+            // 如果是 511，代表隧道需要認證
+            if (res.status === 511 && isLocalTunnel) {
+                console.error('[Tunnel] Authorization Required (511)');
+                window.dispatchEvent(new CustomEvent('tunnel-auth-required', { detail: { url: base } }));
+            }
         } catch (e) {
             lastError = e;
         }
     }
-    throw lastError || new Error('後端服務皆不可用');
+    throw lastError || new Error('後端服務不可用');
 }
 
-/** 輸出 1：搜尋歌曲 (回流代理模式) */
+/** 輸出 1：搜尋歌曲 */
 export async function searchYouTube(query) {
-    try {
-        const res = await apiRequest(`/search?query=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        return data.results || [];
-    } catch (e) {
-        console.warn('[v24] Backend search failed, using public fallback...');
-        // 如果後端掛了，最後一招：用 allorigins 包裹 Invidious
-        const mirrored = `https://api.allorigins.win/get?url=${encodeURIComponent('https://inv.vern.cc/api/v1/search?q=' + query + '&type=video')}`;
-        const res = await fetch(mirrored);
-        const data = await res.json();
-        const items = JSON.parse(data.contents);
-        return items.slice(0, 10).map(v => ({
-            id: v.videoId,
-            url: `https://www.youtube.com/watch?v=${v.videoId}`,
-            title: v.title,
-            uploader: v.author,
-            thumbnail: v.videoThumbnails?.[0]?.url || `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`,
-            duration: v.lengthSeconds
-        }));
-    }
+    // 搜尋功能 Vercel 或本地都行，Vercel 比較穩 (API Key)
+    const res = await apiRequest(`/search?query=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    return data.results || [];
 }
 
 /** 輸出 2：獲取影片詳情 */
 export async function fetchVideoInfo(url) {
-    try {
-        const res = await apiRequest(`/search?query=${encodeURIComponent(url)}`);
-        const data = await res.json();
-        if (data.results?.[0]) return data.results[0];
-        throw new Error('Not found');
-    } catch (e) {
-        const videoId = getYouTubeId(url);
-        return {
-            id: videoId,
-            title: 'YouTube 歌曲',
-            uploader: '系統偵測',
-            thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-            duration: 0
-        };
-    }
+    const res = await apiRequest(`/search?query=${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (data.results?.[0]) return data.results[0];
+
+    // Fallback info
+    const videoId = getYouTubeId(url);
+    return {
+        id: videoId,
+        title: 'YouTube 歌曲 (待解析)',
+        uploader: 'YouTube',
+        thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        duration: 0
+    };
 }
 
-/** 輸出 3：擷取音檔 (智慧備援) */
+/** 輸出 3：擷取音檔 */
 export async function extractFromURL(url, onProgress, signal) {
     const videoId = getYouTubeId(url);
 
-    // A. 優先從後端獲得下載鏈結
-    const getLink = async () => {
-        const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
-        const data = await res.json();
-        if (!data.url) throw new Error('No link from proxy');
-        return data.url;
-    };
+    // 優先從本地家用伺服器獲得網址
+    const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (!data.url) throw new Error('API 無法解析該影片網址');
 
-    let streamUrl;
-    try {
-        streamUrl = await getLink();
-    } catch (e) {
-        // 全球強效備援：透過 allorigins 抓取 Invidious 流
-        console.warn('[v24] Proxy link failed, using Swarm-Mirror...');
-        const mirr = `https://api.allorigins.win/get?url=${encodeURIComponent('https://inv.vern.cc/api/v1/videos/' + videoId)}`;
-        const res = await fetch(mirr);
-        const data = await res.json();
-        const json = JSON.parse(data.contents);
-        streamUrl = json.adaptiveFormats?.find(f => f.type.includes('audio/mp4'))?.url;
-    }
+    const streamUrl = data.url;
 
-    if (!streamUrl) throw new Error('無法取得音軌。YouTube 封鎖太強，請手動下載音檔上傳。');
-
-    // B. 下載流程
+    // 直接從手機端下載
     const response = await fetch(streamUrl, { signal });
-    if (!response.ok) throw new Error('音訊伺服器拒絕手機連線');
+    if (!response.ok) throw new Error('音訊流下載中斷');
 
     const total = parseInt(response.headers.get('content-length'), 10) || 10000000;
     let loaded = 0;
@@ -171,7 +140,8 @@ export async function extractFromURL(url, onProgress, signal) {
 export async function checkAPIHealth() {
     try {
         const res = await apiRequest('/health', { signal: AbortSignal.timeout(3000) });
-        return { ok: res.ok, ready: true };
+        const data = await res.json();
+        return { ok: true, ready: data.ytDlpReady !== false };
     } catch (e) {
         return { ok: false, ready: false };
     }

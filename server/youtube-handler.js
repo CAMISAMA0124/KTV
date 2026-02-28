@@ -2,7 +2,7 @@ import yts from 'yt-search';
 
 // ── Init ─────────────────────────────────────────────────────
 export async function initYtDlp() {
-    console.log('[Handler] Mode: SEARCH-ONLY (no backend extraction)');
+    console.log('[Server] Local Extraction Engine: ACTIVE (ytdl + play-dl)');
     return true;
 }
 

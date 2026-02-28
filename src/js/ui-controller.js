@@ -234,6 +234,18 @@ export class UIController {
             }
         });
 
+        // ── Tunnel Auth Helper (New in V25) ──
+        window.addEventListener('tunnel-auth-required', (e) => {
+            const url = e.detail.url;
+            this.showError(`🔒 撥號失敗 (需授權)。請點擊下方按鈕並選擇「Continue」再回傳。`);
+            const authBtn = document.createElement('button');
+            authBtn.className = 'ktv-tab active';
+            authBtn.textContent = '🚀 點我授權家用電腦';
+            authBtn.style.margin = '10px auto';
+            authBtn.onclick = () => window.open(url, '_blank');
+            this.$panelUrl.appendChild(authBtn);
+        });
+
         this.$resetBtn?.addEventListener('click', () => this.reset());
         this.$cancelBtn?.addEventListener('click', () => this.emit('cancel'));
     }
