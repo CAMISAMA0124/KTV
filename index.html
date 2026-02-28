@@ -68,11 +68,21 @@
                     </div>
                 </div>
 
-                <div class="drawer-actions" style="margin-top: 32px; display: flex; flex-direction: column; gap: 12px;">
+                <div class="drawer-actions" style="margin-top: 32px; display: flex; flex-direction: column; gap: 16px;">
+                    <!-- Local Analysis Moved Here (V30) -->
+                    <div class="local-upload-area">
+                        <input type="file" id="local-file-input" accept="audio/*,video/*" style="display: none;" />
+                        <button class="btn" onclick="document.getElementById('local-file-input').click()"
+                            style="width: 100%; border: 1.5px solid var(--accent); background: rgba(167,139,250,0.1); padding: 18px; border-radius: 20px; color: #fff; cursor: pointer; display:flex; align-items:center; justify-content:center; gap:12px; font-size:1rem; font-weight:700;">
+                            📁 <span>本地音檔分析 <span style="opacity:0.5; font-size:0.75rem">(已搬遷至此)</span></span>
+                        </button>
+                    </div>
+
                     <button id="clear-cache-btn" class="btn-text"
-                        style="color: var(--red); opacity: 0.8; font-weight: 600; padding: 16px; background: rgba(248, 113, 113, 0.05); border-radius: 16px;">🧹
+                        style="color: var(--red); opacity: 0.8; font-weight: 600; padding: 16px; background: rgba(248, 113, 113, 0.05); border-radius: 16px; border: none;">🧹
                         清除所有暫存與歷史紀錄</button>
-                    <button id="toggle-manual" class="btn-text" style="opacity: 0.3; font-size: 0.8rem;">進階身分設定</button>
+                    <button id="toggle-manual" class="btn-text"
+                        style="opacity: 0.3; font-size: 0.8rem; border: none;">進階身分設定</button>
                 </div>
 
                 <div id="manual-settings" style="display: none; margin-top: 24px;">
@@ -109,14 +119,6 @@
                             <button type="submit" id="search-btn" class="url-search-btn">🔍</button>
                         </div>
                     </form>
-
-                    <div class="local-upload-area" style="margin-top: 16px; text-align: center;">
-                        <input type="file" id="local-file-input" accept="audio/*,video/*" style="display: none;" />
-                        <button class="btn btn-secondary" onclick="document.getElementById('local-file-input').click()"
-                            style="width: 100%; border: 2px dashed rgba(167,139,250,0.4); background: rgba(167,139,250,0.05); padding: 16px; border-radius: 16px; color: var(--text-2); cursor: pointer; transition: 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; font-size:0.9rem; font-weight:600;">
-                            📁 <span>本地音檔分析 <span style="opacity:0.5; font-size:0.75rem">(mp3 / m4a / wav)</span></span>
-                        </button>
-                    </div>
 
                     <div class="search-status-bar">
                         <span id="search-status-dot" class="dot"></span>
