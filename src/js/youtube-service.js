@@ -1,7 +1,7 @@
 /**
  * src/js/youtube-service.js
- * (v18 Extreme Unified - Anti-Preflight & Client Dominance)
- * 本版焦點：透過 .json URL 後綴完美繞過 LocalTunnel 提醒，徹底消滅 OPTIONS Preflight 預檢請求。
+ * (v20 Ultimate Resilient - Tunnel Piercing & API Dominance)
+ * 本版焦點：新增 Bypass-Tunnel-Reminder 標頭，徹底解決 LocalTunnel 511 授權牆問題。
  */
 
 export const EngineConfig = {
@@ -20,40 +20,48 @@ const EXTERNAL_BACKENDS = [
 ];
 
 /** 
- * 核心請求引擎 (v18)
- * 關鍵：遇到 loca.lt 自動在 path 加上 .json，完全不發送自定義 Header (如 Bypass-Tunnel-Reminder)，
- * 這樣瀏覽器就不會發送 OPTIONS Preflight，完美繞出 CORS 封鎖。
+ * 核心請求引擎 (v20)
+ * 加入 Bypass-Tunnel-Reminder 以擊穿 LocalTunnel 攔截頁面。
  */
 async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
-    const list = [...new Set([config.backend, '', ...EXTERNAL_BACKENDS])].filter(b => b !== null && b !== undefined);
+    const list = [...new Set(['', config.backend, ...EXTERNAL_BACKENDS])].filter(b => b !== null && b !== undefined && b !== '');
+
+    // 將 Vercel 放在首位 (base 為空字串代表相對路徑 /api)
+    const finalList = ['', ...list];
 
     let lastError = null;
-    for (const base of list) {
+    for (const base of finalList) {
         try {
             const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
             const isLocalTunnel = base.includes('loca.lt');
 
-            // 如果是 loca.lt 且路徑沒有 .json，自動補上以繞過提醒頁面
+            // 如果是 loca.lt，自動補上 .json 且強制發送 Bypass Header
             let finalPath = path;
+            const headers = {
+                'Accept': 'application/json',
+                'Bypass-Tunnel-Reminder': 'true' // V20 核心：擊穿隧道授權牆
+            };
+
             if (isLocalTunnel && !path.includes('.json')) {
                 const [p, q] = path.split('?');
                 finalPath = `${p}.json${q ? '?' + q : ''}`;
             }
 
             const url = base === '' ? `/api${finalPath}` : `${cleanBase}/api${finalPath}`;
-            console.log(`[v18] API Try: ${url}`);
+            console.log(`[v20 API] Try: ${url}`);
 
-            const headers = { 'Accept': 'application/json' };
             if (options.method === 'POST') headers['Content-Type'] = 'application/json';
 
             const fetchOptions = { ...options, headers: { ...headers, ...(options.headers || {}) } };
-            // GET 請求嚴格只用 Safe Headers
-            if (options.method === 'GET') delete fetchOptions.headers['Content-Type'];
+            const res = await fetch(url, { ...fetchOptions, signal: options.signal || AbortSignal.timeout(10000) });
 
-            const res = await fetch(url, { ...fetchOptions, signal: options.signal || AbortSignal.timeout(8000) });
             if (res.ok) return res;
-        } catch (e) { lastError = e; }
+            if (res.status === 404 && base === '') continue; // Vercel 未部署該路由
+        } catch (e) {
+            console.warn(`[v20 API] ${base} Fail: ${e.message}`);
+            lastError = e;
+        }
     }
     throw lastError || new Error('後端服務不可用');
 }
