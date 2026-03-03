@@ -12,6 +12,7 @@ import { encodeWAV } from './audio-merger.js';
 import { UIController, UIState } from './ui-controller.js';
 import { searchYouTube, extractFromURL, fetchVideoInfo, checkAPIHealth } from './youtube-service.js';
 import { getStem } from './storage-service.js';
+import { cloud } from './cloud-service.js';
 
 const ui = new UIController();
 window.ui = ui; // 確保全域 onclick 能找到 ui
@@ -50,6 +51,9 @@ async function init() {
         const status = await checkAPIHealth();
         ui.setAPIStatus(status.ok && status.ready, status.ok && !status.ready);
     }, 30000);
+
+    // 檢查雲端連線
+    ui.setCloudStatus(cloud.isInitialized);
 }
 
 // ─── 統一處理流程 ────────────────────────────────────────────

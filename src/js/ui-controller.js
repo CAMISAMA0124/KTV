@@ -84,6 +84,30 @@ export class UIController {
             if (confirm('確定清除暫存？')) { await clearAllData(); location.reload(); }
         });
 
+        /* 儲存設定 */
+        document.getElementById('save-settings')?.addEventListener('click', () => {
+            const url = document.getElementById('supabase-url')?.value.trim();
+            const key = document.getElementById('supabase-key')?.value.trim();
+            if (url && key) {
+                localStorage.setItem('ktv_supabase_url', url);
+                localStorage.setItem('ktv_supabase_key', key);
+                alert('Supabase 雲端設定已儲存！');
+                location.reload();
+            }
+        });
+
+        /* 隱藏/顯示進階設定 */
+        document.getElementById('toggle-manual')?.addEventListener('click', () => {
+            const panel = document.getElementById('manual-settings');
+            if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        /* 雲端曲庫搜尋 */
+        document.getElementById('library-search')?.addEventListener('input', (e) => {
+            const q = e.target.value.trim();
+            this.emit('library-search', q);
+        });
+
         /* 模式選擇 */
         document.getElementById('mode-quick')?.addEventListener('click', () => {
             this.emit('mode-selected', 'quick', this._selectedFile, this._selectedVideo);
@@ -300,6 +324,14 @@ export class UIController {
         if (stxt) stxt.textContent = ok ? '服務正常' : isWarming ? '後端暖機中...' : '後端連接失敗';
     }
 
+    setCloudStatus(connected) {
+        const el = document.getElementById('cloud-status');
+        if (el) {
+            el.textContent = connected ? '● 雲端已連結' : '未連接雲端';
+            el.style.color = connected ? '#34d399' : '#9ca3af';
+        }
+    }
+
     setModelCacheStatus(fromCache, mb) {
         const el = document.getElementById('model-cache-status');
         if (el) { el.textContent = `${fromCache ? '⚡ 已就緒' : '📥 已下載'} (${Math.round(mb)}MB)`; el.style.display = 'block'; }
@@ -395,10 +427,22 @@ export class UIController {
 
     _initEngineSettings() {
         const config = EngineConfig.load();
-        const map = { 'cookie-input': 'cookies', 'cloud-backend-input': 'cloud_backend', 'backend-input': 'backend' };
+        const map = {
+            'cookie-input': 'cookies',
+            'cloud-backend-input': 'cloud_backend',
+            'backend-input': 'backend',
+        };
         Object.entries(map).forEach(([id, key]) => {
             const el = document.getElementById(id);
             if (el) el.value = config[key] || '';
         });
+
+        // 額外讀取 Supabase 設定
+        const sbUrl = localStorage.getItem('ktv_supabase_url');
+        const sbKey = localStorage.getItem('ktv_supabase_key');
+        const urlInput = document.getElementById('supabase-url');
+        const keyInput = document.getElementById('supabase-key');
+        if (urlInput && sbUrl) urlInput.value = sbUrl;
+        if (keyInput && sbKey) keyInput.value = sbKey;
     }
 }

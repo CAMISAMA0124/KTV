@@ -107,6 +107,12 @@
                         <label style="opacity: 0.8;">☁️ 雲端後端網址 (HF / Codespaces)</label>
                         <input type="text" id="cloud-backend-input" placeholder="https://your-space.hf.space"
                             style="margin-bottom: 12px;" />
+                        <label style="opacity: 0.8;">⚡ Supabase Project URL (雲端曲庫)</label>
+                        <input type="text" id="supabase-url" placeholder="https://xyz.supabase.co"
+                            style="margin-bottom: 12px;" />
+                        <label style="opacity: 0.8;">🔑 Supabase Anon Key</label>
+                        <input type="password" id="supabase-key" placeholder="貼上您的 API Key"
+                            style="margin-bottom: 12px;" />
                         <input type="hidden" id="proxy-input" value="" />
                         <input type="hidden" id="backend-input" value="" />
                         <button id="save-settings" class="btn btn-primary" style="margin-top: 10px;">儲存設定</button>
@@ -258,11 +264,20 @@
                 </div>
             </section>
 
-            <!-- History Section -->
+            <!-- Cloud & Local Library -->
             <section id="history-section" class="history-section">
-                <h2 class="section-title"><span class="title-icon">🕒</span>最近點播</h2>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h2 class="section-title" style="margin:0;"><span class="title-icon">☁️</span>雲端曲庫</h2>
+                    <div id="cloud-status" style="font-size:0.75rem; opacity:0.5;">未連接雲端</div>
+                </div>
+
+                <div class="search-results-wrap" style="margin-bottom:20px;">
+                    <input type="text" id="library-search" class="url-input" placeholder="搜尋已解析的歌曲..."
+                        style="font-size:0.9rem; padding:12px 16px; height:auto;" />
+                </div>
+
                 <div id="history-list" class="history-list">
-                    <!-- History items -->
+                    <!-- Items will appear here -->
                 </div>
             </section>
         </main>
