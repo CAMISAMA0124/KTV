@@ -179,6 +179,8 @@ export class UIController {
         this._selectedFile = null;
 
         const videoUrl = video.url || `https://www.youtube.com/watch?v=${video.id}`;
+        // yt1s.ai 的正確 URL 格式：在頁面後加上 YouTube 連結
+        const yt1sUrl = `https://yt1s.ai/zh-tw/youtube-to-mp3/?q=${encodeURIComponent(videoUrl)}`;
 
         // 填入預覽資訊
         const thumb = document.getElementById('video-thumb');
@@ -188,28 +190,45 @@ export class UIController {
         if (title) title.textContent = video.title;
         if (preview) preview.style.display = 'flex';
 
-        // 手動下載連結
+        // 醒目的「下載音訊」大按鈕 — 取代原本的小文字連結
         const sub = document.querySelector('.video-sub');
         if (sub) {
             sub.innerHTML = `
-                <a href="https://yt1s.ai/zh-tw/youtube-mp3?q=${encodeURIComponent(videoUrl)}"
+                <a href="${yt1sUrl}"
                    target="_blank"
-                   style="color:var(--accent);font-weight:700;font-size:.8rem;text-decoration:underline;">
-                   ➜ 手動下載音訊 (yt1s)
+                   id="yt1s-download-btn"
+                   style="display:inline-flex;align-items:center;gap:8px;
+                          margin-top:10px;
+                          padding:12px 22px;
+                          background:linear-gradient(135deg,#a78bfa,#818cf8);
+                          color:#fff;font-weight:800;font-size:0.95rem;
+                          border-radius:16px;text-decoration:none;
+                          box-shadow:0 8px 20px rgba(130,100,220,0.4);
+                          transition:transform .2s,box-shadow .2s;"
+                   onmouseover="this.style.transform='scale(1.04)'"
+                   onmouseout="this.style.transform='scale(1)'">
+                   ⬇️ 前往下載 MP3（yt1s）
                 </a>
             `;
         }
 
-        // 顯示模式選擇卡片
+        // 顯示模式選擇卡片（用戶下載後可上傳）
         const modeSelection = document.getElementById('mode-selection');
-        if (modeSelection) modeSelection.style.display = 'block';
+        if (modeSelection) {
+            // 在模式選擇前加提示文字
+            const hint = document.getElementById('mode-file-hint');
+            if (hint) {
+                hint.innerHTML = '💡 下載 MP3 後，點右上角 <b>設定 → 上傳並快速去人聲</b> 即可開始分析';
+                hint.style.display = 'block';
+            }
+            modeSelection.style.display = 'none'; // 引導用戶先下載，不要直接點 AI（沒檔案）
+        }
 
-        // 隱藏「匯入按鈕」(現在直接點模式就好，不需要中間步驟)
         const extractBtn = document.getElementById('extract-btn');
         if (extractBtn) extractBtn.style.display = 'none';
 
         this.emit('video-selected', video);
-        this.setStatus('✅ 請選擇分析模式');
+        this.setStatus('⬇️ 請先下載 MP3，再上傳分析！');
     }
 
     /* ── 舊有相容方法 ─────────────────────────── */
