@@ -56,6 +56,10 @@ class KTVPlayer {
         this.vocalPitchShift.output.connect(this.vocalsGain);
         this.accompPitchShift.output.connect(this.accompanimentGain);
 
+        // ✅ 重要：初始化音調偏移為 0（原調）
+        // 先前的 Bug 是 Jungle 預設會帶有微小降調，導致用戶感覺要 +1 才是原調
+        this.setPitch(this.currentPitch);
+
         const container = document.getElementById('video-container');
         if (container) {
             container.innerHTML = '';
