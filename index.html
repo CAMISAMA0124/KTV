@@ -69,28 +69,28 @@
                 </div>
 
                 <div class="drawer-actions" style="margin-top: 32px; display: flex; flex-direction: column; gap: 16px;">
-                    <!-- Tunnel Auth Section (V35 New) -->
-                    <div id="tunnel-auth-section" class="tunnel-auth-section"
-                        style="margin-top: 16px; padding: 18px; background: rgba(167,139,250,0.1); border: 1.5px solid rgba(167,139,250,0.3); border-radius: 20px; display: none;">
-                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                            <span style="font-size: 1.4rem;">🔐</span>
-                            <div style="font-weight: 800; font-size: 1rem; color: var(--accent);">遠端連線授權</div>
-                        </div>
-                        <p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 12px; line-height: 1.4;">
-                            手機或從外部連線時，請點擊此按鈕以「解除隧道攔截」。</p>
-                        <button id="auth-tunnel-btn" class="btn"
-                            style="width: 100%; background: var(--accent); color: #fff; font-weight: 700; padding: 14px; border-radius: 14px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(167,139,250,0.3);">
-                            確認授權 (解除 511)
-                        </button>
-                    </div>
 
-                    <!-- Local Analysis Moved Here (V30) -->
-                    <div class="local-upload-area">
+                    <!-- Local File Upload + Direct Analysis -->
+                    <div class="local-upload-area"
+                        style="background: rgba(167,139,250,0.08); border: 1.5px solid rgba(167,139,250,0.25); border-radius: 20px; padding: 18px;">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                            <span style="font-size:1.4rem;">📁</span>
+                            <div>
+                                <div style="font-weight:800; font-size:1rem;">本地音檔分析</div>
+                                <div style="font-size:0.75rem; opacity:0.5;">支援 MP3、MP4、WAV、M4A 等格式</div>
+                            </div>
+                        </div>
                         <input type="file" id="local-file-input" accept="audio/*,video/*" style="display: none;" />
-                        <button class="btn" onclick="document.getElementById('local-file-input').click()"
-                            style="width: 100%; border: 1.5px solid var(--accent); background: rgba(167,139,250,0.1); padding: 18px; border-radius: 20px; color: #fff; cursor: pointer; display:flex; align-items:center; justify-content:center; gap:12px; font-size:1rem; font-weight:700;">
-                            📁 <span>本地音檔分析 <span style="opacity:0.5; font-size:0.75rem">(已搬遷至此)</span></span>
-                        </button>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <button id="drawer-quick-btn" class="btn"
+                                style="width:100%; background:linear-gradient(135deg,#a78bfa,#818cf8); color:#fff; padding:14px; border-radius:14px; border:none; cursor:pointer; font-weight:700; font-size:0.95rem; display:flex; align-items:center; justify-content:center; gap:8px;">
+                                ⚡ 上傳並快速去人聲
+                            </button>
+                            <button id="drawer-ai-btn" class="btn"
+                                style="width:100%; background:rgba(255,255,255,0.07); color:#fff; padding:14px; border-radius:14px; border:1px solid rgba(255,255,255,0.15); cursor:pointer; font-weight:700; font-size:0.95rem; display:flex; align-items:center; justify-content:center; gap:8px;">
+                                🧠 上傳並 AI 深度分離
+                            </button>
+                        </div>
                     </div>
 
                     <button id="clear-cache-btn" class="btn-text"

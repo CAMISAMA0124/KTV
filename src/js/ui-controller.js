@@ -83,6 +83,39 @@ export class UIController {
         this._bindEvents();
         this.renderHistory();
         this._initEngineSettings();
+        this._bindDrawerFileButtons();
+    }
+
+    // 設定抽屜內的「直接上傳分析」按鈕
+    _bindDrawerFileButtons() {
+        const fileInput = document.getElementById('local-file-input');
+        const quickBtn = document.getElementById('drawer-quick-btn');
+        const aiBtn = document.getElementById('drawer-ai-btn');
+
+        let pendingMode = 'quick';
+
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                this._selectedFile = file;
+                this._selectedVideo = null;
+                this._toggleEngineDrawer(false); // 關閉設定抽屜
+                // 直接以選擇的模式處理，不再顯示 mode-selection
+                setTimeout(() => this.emit('mode-selected', pendingMode, file, null), 200);
+                fileInput.value = ''; // 重置，方便下次選同一個檔案
+            });
+        }
+
+        quickBtn?.addEventListener('click', () => {
+            pendingMode = 'quick';
+            fileInput?.click();
+        });
+
+        aiBtn?.addEventListener('click', () => {
+            pendingMode = 'ai';
+            fileInput?.click();
+        });
     }
 
     // ── Event emitter ────────────────────────────────────────
