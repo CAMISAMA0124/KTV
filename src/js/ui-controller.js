@@ -88,18 +88,33 @@ export class UIController {
         document.getElementById('save-settings')?.addEventListener('click', () => {
             const url = document.getElementById('supabase-url')?.value.trim();
             const key = document.getElementById('supabase-key')?.value.trim();
+
             if (url && key) {
                 localStorage.setItem('ktv_supabase_url', url);
                 localStorage.setItem('ktv_supabase_key', key);
-                alert('Supabase 雲端設定已儲存！');
+                alert('🚀 雲端設定已儲存！');
                 location.reload();
+            } else {
+                alert('請完整填入 URL 與 Key');
             }
         });
 
-        /* 隱藏/顯示進階設定 */
-        document.getElementById('toggle-manual')?.addEventListener('click', () => {
+        /* 隱藏/顯示進階設定 (含秘密填充功能) */
+        document.getElementById('toggle-manual')?.addEventListener('click', (e) => {
             const panel = document.getElementById('manual-settings');
-            if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            if (panel) {
+                const isHidden = panel.style.display === 'none';
+                panel.style.display = isHidden ? 'block' : 'none';
+
+                // 秘密功能：點擊標題自動填入網址 (金鑰請手動貼上)
+                if (!isHidden) {
+                    const urlInput = document.getElementById('supabase-url');
+                    if (urlInput && !urlInput.value) {
+                        urlInput.value = 'https://indfgrbdrkpyondkaicg.supabase.co';
+                        console.log('🤫 URL pre-filled. Please paste your Key manually.');
+                    }
+                }
+            }
         });
 
         /* 雲端曲庫搜尋 */
@@ -119,10 +134,11 @@ export class UIController {
         /* 保存按鈕觸發命名流程 */
         document.getElementById('save-btn')?.addEventListener('click', async () => {
             const currentTitle = document.getElementById('video-title')?.textContent || '未知歌曲';
-            const name = prompt('請輸入要保存的歌名（這將用於雲端檢索）：', currentTitle);
+            const name = prompt('請輸入歌名：', currentTitle);
             if (name) {
-                this.emit('save-to-cloud', name);
-                alert(`正在準備將「${name}」處理... (雲端功能開發中)`);
+                const artist = prompt('請輸入歌手名稱：', '未知歌手');
+                this.emit('save-to-cloud', { title: name, artist: artist || '未知歌手' });
+                alert(`正在準備上傳「${name} - ${artist}」...`);
             }
         });
     }
