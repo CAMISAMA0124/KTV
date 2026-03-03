@@ -61,12 +61,28 @@ body {
   top: -20%;
   right: -15%;
   background: radial-gradient(circle, var(--accent), transparent);
+  animation: liquid 15s infinite alternate ease-in-out;
 }
 
 .bg-glow-2 {
   bottom: -20%;
   left: -15%;
   background: radial-gradient(circle, var(--accent-blue), transparent);
+  animation: liquid 20s infinite alternate-reverse ease-in-out;
+}
+
+@keyframes liquid {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(10%, 15%) scale(1.1);
+  }
+
+  100% {
+    transform: translate(-5%, -10%) scale(0.95);
+  }
 }
 
 /* 🟢 Header Actions & Engine Button */
@@ -153,8 +169,15 @@ body.drag-over::after {
 }
 
 @keyframes bounce-in {
-  from { transform: scale(0.5); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* 🟢 Glassmorphism Refinement */
@@ -325,30 +348,34 @@ body.drag-over::after {
 
 .hero {
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 24px;
+  padding-top: 20px;
 }
 
 .hero-title {
-  font-size: clamp(2.2rem, 10vw, 3rem);
+  font-size: clamp(2.8rem, 12vw, 4rem);
   font-weight: 900;
-  line-height: 1.05;
-  margin-bottom: 18px;
-  letter-spacing: -2px;
+  line-height: 1;
+  margin-bottom: 16px;
+  letter-spacing: -4px;
+  text-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #fff 20%, var(--accent-blue) 80%, var(--accent) 100%);
+  background: linear-gradient(135deg, #fff 30%, var(--accent-blue) 70%, var(--accent) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.3));
 }
 
 .hero-sub {
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--text-2);
-  letter-spacing: 3px;
+  letter-spacing: 5px;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 800;
+  opacity: 0.7;
 }
 
 .card {
@@ -726,20 +753,29 @@ body.drag-over::after {
 .btn-back {
   width: 100%;
   margin-top: 24px;
-  padding: 18px;
-  background: transparent;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-3);
-  border: 1px dashed var(--border);
-  border-radius: 28px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
   cursor: pointer;
-  transition: 0.3s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .btn-back:hover {
   color: #fff;
-  border-color: var(--text-2);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--accent-blue);
+  background: rgba(56, 189, 248, 0.1);
+  transform: translateY(-2px);
+}
+
+.btn-back:active {
+  transform: scale(0.98);
 }
 
 .search-results {
@@ -784,36 +820,22 @@ body.drag-over::after {
 }
 
 .badge {
-  font-size: 0.75rem;
-  padding: 4px 12px;
-  background: rgba(52, 211, 153, 0.15);
+  font-size: 0.72rem;
+  padding: 5px 12px;
+  background: rgba(52, 211, 153, 0.12);
   color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.3);
-  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  border-radius: 99px;
   font-weight: 800;
-  position: relative;
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.badge::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  animation: shimmer 3s infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    transform: translate(-100%, -100%);
-  }
-
-  100% {
-    transform: translate(100%, 100%);
-  }
+.badge-gpu {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.25);
 }
 
 /* KTV Player Specifics */
