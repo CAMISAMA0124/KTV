@@ -16,9 +16,7 @@ export const EngineConfig = {
     save(config) { localStorage.setItem('ktv_engine_config', JSON.stringify(config)); }
 };
 
-const EXTERNAL_BACKENDS = [
-    'https://latina-teacher-pgp-sierra.trycloudflare.com'
-];
+const EXTERNAL_BACKENDS = []; // 移除失效的 Cloudflare 隧道
 
 /** 輔助：提取 Video ID */
 function getYouTubeId(url) {
@@ -36,10 +34,11 @@ async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
     const isProxy = path.includes('/proxy');
 
-    // 搜尋只用雲端，下載只用家裡 (V36 增強：加上個雲端備援)
+    // 搜尋與詳情：優先走 Vercel ('') 以確保搜尋成功率。
+    // 下載代理：優先走家中的 config.backend。
     const list = isProxy
-        ? [config.backend, config.cloud_backend, ...EXTERNAL_BACKENDS, '']
-        : ['', config.backend, config.cloud_backend, ...EXTERNAL_BACKENDS];
+        ? [config.backend, config.cloud_backend, '']
+        : ['', config.backend, config.cloud_backend];
 
     let lastError = null;
     for (const base of list.filter(b => b && b !== '')) {
