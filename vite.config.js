@@ -24,11 +24,14 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
-    // 解決 rollup 分塊問題
+    plugins: () => [] // 防止插件重複套用導致 Worker 格式錯誤
   },
   build: {
     target: 'esnext',
-    minify: 'esbuild'
+    minify: 'esbuild',
+    outDir: 'dist',
+    emptyOutDir: true,
+    cssCodeSplit: false
   }
 });
 

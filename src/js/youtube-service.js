@@ -36,18 +36,23 @@ async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
     const isProxy = path.includes('/proxy');
 
-    // 搜尋只用雲端，下載只用家裡
-    const list = isProxy ? [config.backend, ...EXTERNAL_BACKENDS, ''] : ['', config.backend, ...EXTERNAL_BACKENDS];
+    // 搜尋只用雲端，下載只用家裡 (V36 增強：加上個雲端備援)
+    const list = isProxy
+        ? [config.backend, config.cloud_backend, ...EXTERNAL_BACKENDS, '']
+        : ['', config.backend, config.cloud_backend, ...EXTERNAL_BACKENDS];
 
     let lastError = null;
-    for (const base of list.filter(b => b !== '')) {
+    for (const base of list.filter(b => b && b !== '')) {
         try {
             const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
-            const isLocal = base.includes('loca.lt');
+            const isLocal = base.includes('loca.lt') || base.includes('127.0.0.1');
             let finalPath = path;
 
             // 核心：如果是 LocalTunnel，絕對不帶任何標頭，避免 Preflight
-            const headers = (isLocal) ? {} : { 'Accept': 'application/json' };
+            const headers = (isLocal) ? {} : {
+                'Accept': 'application/json',
+                'X-Youtube-Cookies': config.cookies || '' // V36 傳送身分文件
+            };
             if (isLocal && !path.includes('.json')) {
                 const [p, q] = path.split('?');
                 finalPath = `${p}.json${q ? '?' + q : ''}`;

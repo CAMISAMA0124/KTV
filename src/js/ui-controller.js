@@ -76,6 +76,9 @@ export class UIController {
         this.$cookieInput = document.getElementById('cookie-input');
         this.$proxyInput = document.getElementById('proxy-input');
         this.$backendInput = document.getElementById('backend-input');
+        this.$cloudBackendInput = document.getElementById('cloud-backend-input');
+        this.$authTunnelBtn = document.getElementById('auth-tunnel-btn');
+        this.$tunnelAuthSection = document.getElementById('tunnel-auth-section');
 
         this._bindEvents();
         this.renderHistory();
@@ -134,8 +137,9 @@ export class UIController {
         this.$saveSettings?.addEventListener('click', () => {
             const config = {
                 cookies: this.$cookieInput?.value.trim() || '',
-                proxy: '', // Automated
-                backend: '' // Automated
+                cloud_backend: this.$cloudBackendInput?.value.trim() || '',
+                proxy: '',
+                backend: ''
             };
             EngineConfig.save(config);
             this._toggleEngineDrawer(false);
@@ -259,6 +263,16 @@ export class UIController {
                 };
 
                 statusBar?.parentNode.insertBefore(panel, statusBar);
+            }
+        });
+
+        this.$authTunnelBtn?.addEventListener('click', () => {
+            const config = EngineConfig.load();
+            // 優先嘗試家用後端，否則試試常規外部後端
+            const target = config.backend || 'https://latina-teacher-pgp-sierra.trycloudflare.com';
+            if (target) {
+                window.open(target, '_blank');
+                this.setStatus('🔐 請在開啟的頁面點擊 "Confirm" 或 "Visit Site" 以完成授權');
             }
         });
 
@@ -617,9 +631,17 @@ export class UIController {
     _initEngineSettings() {
         const config = EngineConfig.load();
         if (this.$cookieInput) this.$cookieInput.value = config.cookies || '';
+        if (this.$cloudBackendInput) this.$cloudBackendInput.value = config.cloud_backend || '';
         if (this.$proxyInput) this.$proxyInput.value = config.proxy || '';
         if (this.$backendInput) this.$backendInput.value = config.backend || '';
         this._updateEngineStatus();
+
+        // 檢查是否顯示隧道授權區塊
+        if (this.$tunnelAuthSection) {
+            const isRemote = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+            const hasBackend = !!config.backend || true; // 預設顯示，方便用戶手動觸發
+            this.$tunnelAuthSection.style.display = (isRemote || hasBackend) ? 'block' : 'none';
+        }
     }
 
     _toggleEngineDrawer(open) {

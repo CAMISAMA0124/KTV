@@ -69,6 +69,21 @@
                 </div>
 
                 <div class="drawer-actions" style="margin-top: 32px; display: flex; flex-direction: column; gap: 16px;">
+                    <!-- Tunnel Auth Section (V35 New) -->
+                    <div id="tunnel-auth-section" class="tunnel-auth-section"
+                        style="margin-top: 16px; padding: 18px; background: rgba(167,139,250,0.1); border: 1.5px solid rgba(167,139,250,0.3); border-radius: 20px; display: none;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                            <span style="font-size: 1.4rem;">🔐</span>
+                            <div style="font-weight: 800; font-size: 1rem; color: var(--accent);">遠端連線授權</div>
+                        </div>
+                        <p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 12px; line-height: 1.4;">
+                            手機或從外部連線時，請點擊此按鈕以「解除隧道攔截」。</p>
+                        <button id="auth-tunnel-btn" class="btn"
+                            style="width: 100%; background: var(--accent); color: #fff; font-weight: 700; padding: 14px; border-radius: 14px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(167,139,250,0.3);">
+                            確認授權 (解除 511)
+                        </button>
+                    </div>
+
                     <!-- Local Analysis Moved Here (V30) -->
                     <div class="local-upload-area">
                         <input type="file" id="local-file-input" accept="audio/*,video/*" style="display: none;" />
@@ -89,6 +104,9 @@
                     <div class="setting-group" style="margin-bottom: 0;">
                         <label style="opacity: 0.8;">🔑 專家鑰匙 (YouTube Cookie JSON)</label>
                         <textarea id="cookie-input" style="height: 120px;" placeholder='選填項目...'></textarea>
+                        <label style="opacity: 0.8;">☁️ 雲端後端網址 (HF / Codespaces)</label>
+                        <input type="text" id="cloud-backend-input" placeholder="https://your-space.hf.space"
+                            style="margin-bottom: 12px;" />
                         <input type="hidden" id="proxy-input" value="" />
                         <input type="hidden" id="backend-input" value="" />
                         <button id="save-settings" class="btn btn-primary" style="margin-top: 10px;">儲存設定</button>

@@ -116,73 +116,60 @@ app.all(['/api/proxy', '/api/proxy.json'], async (req, res) => {
     const videoIdMatch = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/)([^"&?\/\s]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
-    // 尋找音源連結 (內部使用，不回傳給前端)
-    let audioUrl = null;
-
-    // 策略 1: play-dl
+    // ── 策略 0: yt-dlp (最新最穩，優先使用) ──
     try {
-        const info = await play.video_info(url);
-        const format = info.format.find(f => f.mimeType && f.mimeType.includes('audio/mp4'))
-            || info.format.find(f => f.mimeType && f.mimeType.includes('audio/webm'))
-            || info.format.find(f => f.hasAudio && !f.hasVideo);
-        if (format?.url) {
-            audioUrl = format.url;
-            console.log(`[Proxy] play-dl found audio URL`);
-        }
-    } catch (e) {
-        console.warn(`[Proxy] play-dl failed: ${e.message}`);
-    }
+        const userCookies = req.headers['x-youtube-cookies'];
+        console.log(`[Proxy] Strategy 0: yt-dlp (Cookies: ${userCookies ? 'Present' : 'None'})`);
 
-    // 策略 2: ytdl-core
-    if (!audioUrl) {
-        try {
-            const info = await ytdl.getInfo(url);
-            const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
-            if (format?.url) {
-                audioUrl = format.url;
-                console.log(`[Proxy] ytdl found audio URL`);
+        const info = await extractAudio(url, userCookies);
+        if (info && info.url) {
+            const audioRes = await fetch(info.url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.youtube.com/',
+                },
+                signal: AbortSignal.timeout(30000)
+            });
+
+            if (audioRes.ok) {
+                res.setHeader('Content-Type', audioRes.headers.get('content-type') || `audio/${info.ext || 'mpeg'}`);
+                res.setHeader('Content-Disposition', `attachment; filename="${videoId || 'audio'}.${info.ext || 'mp3'}"`);
+                const cl = audioRes.headers.get('content-length');
+                if (cl) res.setHeader('Content-Length', cl);
+
+                const { Readable } = await import('stream');
+                Readable.fromWeb(audioRes.body).pipe(res);
+                return;
             }
-        } catch (e) {
-            console.warn(`[Proxy] ytdl failed: ${e.message}`);
         }
-    }
-
-    if (!audioUrl) {
-        return res.status(502).json({ error: 'LOCAL_PROXY_ALL_FAILED', message: '無法取得音源連結' });
-    }
-
-    // ── 核心修正：直接在後端串流音訊給前端 ──
-    // 這樣前端永遠不會碰到 googlevideo.com 的 CORS 限制
-    try {
-        console.log(`[Proxy] Streaming audio to client...`);
-        const audioRes = await fetch(audioUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
-                'Referer': 'https://www.youtube.com/',
-                'Origin': 'https://www.youtube.com'
-            },
-            signal: AbortSignal.timeout(30000)
-        });
-
-        if (!audioRes.ok) throw new Error(`upstream ${audioRes.status}`);
-
-        res.setHeader('Content-Type', audioRes.headers.get('content-type') || 'audio/webm');
-        res.setHeader('Content-Disposition', `attachment; filename="${videoId || 'audio'}.mp3"`);
-        const cl = audioRes.headers.get('content-length');
-        if (cl) res.setHeader('Content-Length', cl);
-
-        // Node.js stream pipe
-        const { Readable } = await import('stream');
-        const readable = Readable.fromWeb(audioRes.body);
-        readable.pipe(res);
-        readable.on('error', (e) => {
-            console.error('[Proxy] Stream error:', e.message);
-            res.destroy();
-        });
     } catch (e) {
-        console.error('[Proxy] Streaming failed:', e.message);
-        if (!res.headersSent) res.status(502).json({ error: 'STREAM_FAILED', message: e.message });
+        console.warn(`[Proxy] yt-dlp strategy failed: ${e.message}`);
     }
+
+    // ── 策略 1: ytdl-core 直接 pipe (備援) ──
+    try {
+        console.log(`[Proxy] Strategy 1: ytdl direct pipe...`);
+        const info = await ytdl.getInfo(url);
+        const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+
+        if (format) {
+            res.setHeader('Content-Type', format.mimeType?.split(';')[0] || 'audio/webm');
+            res.setHeader('Content-Disposition', `attachment; filename="${videoId || 'audio'}.webm"`);
+            if (format.contentLength) res.setHeader('Content-Length', format.contentLength);
+
+            const stream = ytdl.downloadFromInfo(info, { format });
+            stream.pipe(res);
+            stream.on('error', (e) => {
+                console.error('[Proxy] ytdl pipe error:', e.message);
+                if (!res.headersSent) res.status(502).json({ error: 'PIPE_ERROR' });
+            });
+            return; // 成功
+        }
+    } catch (e) {
+        console.warn(`[Proxy] ytdl pipe failed: ${e.message}`);
+    }
+
+    if (!res.headersSent) res.status(502).json({ error: 'ALL_STRATEGIES_FAILED', message: '無法解析音源' });
 });
 
 
