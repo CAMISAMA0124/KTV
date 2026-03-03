@@ -173,14 +173,22 @@ export class UIController {
     }
 
     /* ── 影片預覽面板 (選歌後共用) ────────────── */
-    _showVideoPanel(video) {
+    async _showVideoPanel(video) {
         console.log('[UI] showVideoPanel for:', video.title);
         this._selectedVideo = video;
         this._selectedFile = null;
 
         const videoUrl = video.url || `https://www.youtube.com/watch?v=${video.id}`;
-        // yt1s.ai 的正確 URL 格式：在頁面後加上 YouTube 連結
-        const yt1sUrl = `https://yt1s.ai/zh-tw/youtube-to-mp3/?q=${encodeURIComponent(videoUrl)}`;
+        // 改為 MP4 下載頁
+        const yt1sUrl = `https://yt1s.ai/zh-tw/youtube-to-mp4/?q=${encodeURIComponent(videoUrl)}`;
+
+        // ✅ 自動複製 YouTube 連結到剪貼簿
+        try {
+            await navigator.clipboard.writeText(videoUrl);
+            console.log('[UI] Copied to clipboard:', videoUrl);
+        } catch (e) {
+            console.warn('[UI] Clipboard copy failed:', e.message);
+        }
 
         // 填入預覽資訊
         const thumb = document.getElementById('video-thumb');
@@ -190,45 +198,38 @@ export class UIController {
         if (title) title.textContent = video.title;
         if (preview) preview.style.display = 'flex';
 
-        // 醒目的「下載音訊」大按鈕 — 取代原本的小文字連結
+        // 醒目的「下載 MP4」大按鈕 + 複製成功提示
         const sub = document.querySelector('.video-sub');
         if (sub) {
             sub.innerHTML = `
+                <div style="font-size:.75rem;color:#22c55e;margin-bottom:6px;font-weight:600;">
+                    ✅ YouTube 連結已複製到剪貼簿
+                </div>
                 <a href="${yt1sUrl}"
                    target="_blank"
                    id="yt1s-download-btn"
                    style="display:inline-flex;align-items:center;gap:8px;
-                          margin-top:10px;
-                          padding:12px 22px;
+                          width:100%;box-sizing:border-box;
+                          padding:13px 22px;
                           background:linear-gradient(135deg,#a78bfa,#818cf8);
                           color:#fff;font-weight:800;font-size:0.95rem;
                           border-radius:16px;text-decoration:none;
                           box-shadow:0 8px 20px rgba(130,100,220,0.4);
-                          transition:transform .2s,box-shadow .2s;"
-                   onmouseover="this.style.transform='scale(1.04)'"
-                   onmouseout="this.style.transform='scale(1)'">
-                   ⬇️ 前往下載 MP3（yt1s）
+                          justify-content:center;">
+                   ⬇️ 前往下載 MP4（yt1s）
                 </a>
+                <div style="font-size:.72rem;opacity:.45;margin-top:6px;text-align:center;">
+                    下載完成後，點右上角 ⚙️ 設定 → 上傳分析
+                </div>
             `;
         }
 
-        // 顯示模式選擇卡片（用戶下載後可上傳）
-        const modeSelection = document.getElementById('mode-selection');
-        if (modeSelection) {
-            // 在模式選擇前加提示文字
-            const hint = document.getElementById('mode-file-hint');
-            if (hint) {
-                hint.innerHTML = '💡 下載 MP3 後，點右上角 <b>設定 → 上傳並快速去人聲</b> 即可開始分析';
-                hint.style.display = 'block';
-            }
-            modeSelection.style.display = 'none'; // 引導用戶先下載，不要直接點 AI（沒檔案）
-        }
-
-        const extractBtn = document.getElementById('extract-btn');
-        if (extractBtn) extractBtn.style.display = 'none';
+        // 隱藏模式選擇（引導先下載）
+        document.getElementById('mode-selection')?.style.setProperty('display', 'none');
+        document.getElementById('extract-btn')?.style.setProperty('display', 'none');
 
         this.emit('video-selected', video);
-        this.setStatus('⬇️ 請先下載 MP3，再上傳分析！');
+        this.setStatus('✅ 連結已複製，請前往 yt1s 下載 MP4！');
     }
 
     /* ── 舊有相容方法 ─────────────────────────── */
