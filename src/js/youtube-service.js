@@ -41,9 +41,10 @@ async function apiRequest(path, options = {}) {
         : ['', config.backend, config.cloud_backend];
 
     let lastError = null;
-    for (const base of list.filter(b => b && b !== '')) {
+    for (const base of list) {
+        if (base === undefined || base === null) continue;
         try {
-            const cleanBase = base.replace(/\/$/, '').replace(/\/api$/, '');
+            const cleanBase = String(base).replace(/\/$/, '').replace(/\/api$/, '');
             const isLocal = base.includes('loca.lt') || base.includes('127.0.0.1');
             let finalPath = path;
 

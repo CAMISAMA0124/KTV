@@ -159,9 +159,17 @@ export class UIController {
     }
 
     async _selectVideoById(id) {
+        console.log('[UI] Selecting video by ID:', id);
         this.setStatus('📡 讀取影片資訊...');
-        const info = await fetchVideoInfo(`https://www.youtube.com/watch?v=${id}`);
-        this._selectVideo(info);
+        const url = `https://www.youtube.com/watch?v=${id}`;
+        try {
+            const info = await fetchVideoInfo(url);
+            info.url = url; // 確保有 URL 供下載與提取使用
+            this._selectVideo(info);
+        } catch (err) {
+            console.error('[UI] Fetch video info failed:', err);
+            this.showError('無法讀取影片資訊');
+        }
     }
 
     _selectVideo(video) {
@@ -185,10 +193,11 @@ export class UIController {
         if (modeSelection) modeSelection.style.display = 'none'; // 讓用戶點擊匯入後才顯示
 
         // 加入外部下載連結 (用戶要求的)
+        const videoUrl = video.url || `https://www.youtube.com/watch?v=${video.id}`;
         const sub = document.getElementById('video-sub') || document.querySelector('.video-sub');
         if (sub) {
             sub.innerHTML = `
-                <a href="https://yt1s.com/en/youtube-to-mp3?q=${encodeURIComponent(video.url)}" target="_blank" style="color:var(--accent); text-decoration:underline; font-size:0.8rem; margin-right:10px;">➜ 按此手動下載音訊</a>
+                <a href="https://yt1s.ai/zh-tw/youtube-mp3?q=${encodeURIComponent(videoUrl)}" target="_blank" style="color:var(--accent); text-decoration:underline; font-size:0.8rem; margin-right:10px; font-weight:700;">➜ 按此手動下載音訊</a>
                 <span id="video-duration">${video.duration || ''}</span>
             `;
         }
@@ -253,9 +262,10 @@ export class UIController {
         this.setStatus('🎉 準備完成，開始熱唱！');
 
         // 重要：分析完成後關閉黑畫面覆蓋層
-        if (this.$videoOverlay) {
-            this.$videoOverlay.classList.remove('active');
-            this.$videoOverlay.style.display = 'none';
+        const overlay = document.getElementById('video-overlay');
+        if (overlay) {
+            overlay.classList.remove('active');
+            overlay.style.display = 'none';
         }
     }
 
