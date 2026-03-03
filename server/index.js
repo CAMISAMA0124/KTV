@@ -39,6 +39,14 @@ async function startServer() {
     // 立即啟動監聽，避免 Zeabur 健康檢查失敗
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`[Server] Running on port ${PORT}`);
+        import('fs').then(fs => {
+            console.log('[Debug] App directory content:', fs.readdirSync(__dirname + '/..'));
+            if (fs.existsSync(__dirname + '/../dist')) {
+                console.log('[Debug] Dist directory content:', fs.readdirSync(__dirname + '/../dist'));
+            } else {
+                console.log('[Debug] WARNING: dist directory NOT found!');
+            }
+        });
     });
 
     try {

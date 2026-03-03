@@ -20,8 +20,9 @@ RUN npm install
 # 複製所有代碼到容器內
 COPY . .
 
-# 編譯前端靜態檔案
-RUN npm run build
+# [強制重新編譯] 加入時間戳記確保 HF 偵測到變動: 2026-03-03-13-35
+# 編譯前端靜態檔案，並列出結果確認
+RUN npm run build && ls -R dist && echo "Build Finished Successfully"
 
 # 確保 yt-dlp 二進位檔具備執行權限 (HF 預設使用 Linux 版本)
 RUN mkdir -p node_modules/yt-dlp-exec/bin && \
