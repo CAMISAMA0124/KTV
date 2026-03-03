@@ -149,15 +149,16 @@
                     </div>
 
                     <!-- Selected Video Preview -->
-                    <div id="video-preview" class="video-preview" style="display: none;">
-                        <img id="video-thumb" class="video-thumb" src="" alt="Thumbnail" />
-                        <div class="video-meta">
-                            <h3 id="video-title" class="video-title">歌曲標題</h3>
-                            <div class="video-sub">
-                                <span id="video-uploader">Uploader</span>
-                                <span id="video-duration">0:00</span>
+                    <div id="video-preview" class="video-preview"
+                        style="display: none; flex-direction:column; align-items:stretch; gap:0;">
+                        <div style="display:flex; gap:12px; align-items:center;">
+                            <img id="video-thumb" class="video-thumb" src="" alt="Thumbnail"
+                                style="width:80px;height:45px;object-fit:cover;border-radius:10px;flex-shrink:0;" />
+                            <div class="video-meta" style="flex:1;min-width:0;">
+                                <h3 id="video-title" class="video-title" style="margin:0;font-size:.95rem;">歌曲標題</h3>
                             </div>
                         </div>
+                        <div class="video-sub" style="margin-top:10px;"></div>
                     </div>
 
                     <button id="extract-btn" class="btn btn-primary" style="display: none;">匯入並分析</button>
@@ -224,7 +225,7 @@
                 <div id="player-card" class="card player-card">
                     <div class="video-container-wrap">
                         <div id="video-container"></div>
-                        <div id="video-overlay" class="video-overlay">
+                        <div id="video-overlay" class="video-overlay" style="display:none;">
                             <div class="spinner"></div>
                             <p>同步音軌中...</p>
                         </div>

@@ -53,18 +53,19 @@ class KTVPlayer {
         const container = document.getElementById('video-container');
         if (container) {
             container.innerHTML = '';
-            const parent = container.parentElement;
-            if (parent) parent.style.display = 'block';
+            container.style.width = '100%';
+            container.style.height = '100%';
+            container.style.background = '#000';
         }
 
         // 核心：判斷是 YouTube 還是本地影片
-        const isYTId = typeof source === 'string' && source.length === 11 && !source.includes(':');
-        const isYTUrl = typeof source === 'string' && source.startsWith('http') && source.includes('youtube.com');
+        const isYTId = typeof source === 'string' && source.length === 11 && !source.includes(':') && !source.includes('/');
+        const isYTUrl = typeof source === 'string' && source.startsWith('http') && (source.includes('youtube.com') || source.includes('youtu.be'));
 
         if (isYTId || isYTUrl) {
-            const videoId = isYTId ? source : new URL(source).searchParams.get('v');
+            const videoId = isYTId ? source : (new URL(source).searchParams.get('v') || source);
             this.isLocalOnly = false;
-            await this.initYTPlayer(videoId || source);
+            await this.initYTPlayer(videoId);
         } else if (source && (source.startsWith('blob:') || source.startsWith('data:'))) {
             // 本地影片模式
             this.isLocalOnly = true;
@@ -74,6 +75,14 @@ class KTVPlayer {
             this.isLocalOnly = true;
             this.renderAudioUI(container);
         }
+
+        // ✅ 無論什麼模式，載入完成後都要隱藏黑畫面覆蓋層
+        const overlay = document.getElementById('video-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+            overlay.classList.remove('active');
+        }
+
         this.isReady = true;
     }
 
