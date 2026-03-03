@@ -264,6 +264,18 @@ class KTVPlayer {
         this.vocalsGain.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.1);
     }
 
+    replay() {
+        console.log('[KTV] Replay requested');
+        if (this.isLocalOnly && this.localVideo) {
+            this.localVideo.currentTime = 0;
+            this.localVideo.play();
+        } else if (this.ytPlayer && this.ytPlayer.seekTo) {
+            this.ytPlayer.seekTo(0);
+            this.ytPlayer.playVideo();
+        }
+        this.playAudioFrom(0);
+    }
+
     setPitch(key) {
         this.currentPitch = key;
         const mult = key / 12;

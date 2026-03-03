@@ -64,6 +64,9 @@ export class UIController {
             if (label) label.textContent = isOn ? '導唱 On' : '導唱 Off';
             ktv.toggleGuide(isOn);
         });
+        document.getElementById('replay-btn')?.addEventListener('click', () => {
+            ktv.replay();
+        });
         document.getElementById('pitch-up')?.addEventListener('click', () => this._changePitch(1));
         document.getElementById('pitch-down')?.addEventListener('click', () => this._changePitch(-1));
         document.getElementById('reset-btn')?.addEventListener('click', () => location.reload());
