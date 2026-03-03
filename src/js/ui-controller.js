@@ -106,12 +106,15 @@ export class UIController {
                 const isHidden = panel.style.display === 'none';
                 panel.style.display = isHidden ? 'block' : 'none';
 
-                // 秘密功能：點擊標題自動填入網址 (金鑰請手動貼上)
+                // 秘密功能：自動填入 (URL 已填，KEY 請在 GitHub 上手動填入下方變數中)
                 if (!isHidden) {
                     const urlInput = document.getElementById('supabase-url');
-                    if (urlInput && !urlInput.value) {
+                    const keyInput = document.getElementById('supabase-key');
+                    if (urlInput && keyInput && !urlInput.value) {
                         urlInput.value = 'https://indfgrbdrkpyondkaicg.supabase.co';
-                        console.log('🤫 URL pre-filled. Please paste your Key manually.');
+                        const yourSecretKey = ''; // <--- 請在 GitHub 上手動填入您的 Secret Key
+                        if (yourSecretKey) keyInput.value = yourSecretKey;
+                        console.log('🤫 Secrets slot ready');
                     }
                 }
             }
