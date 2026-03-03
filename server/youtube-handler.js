@@ -135,9 +135,26 @@ function convertToNetscape(jsonText) {
     } catch { return null; }
 }
 
-// 擷取音訊 (支援動態 Cookies)
+/** 伺服器端 Cobalt 備援 (解決 HF IP 封鎖與瀏覽器 CORS 問題) */
+async function fetchWithCobaltServerSide(url) {
+    console.log('[Handler] Backend switching to Cobalt fallback...');
+    try {
+        const response = await fetch('https://api.cobalt.tools/api/json', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ url, aFormat: 'mp3', isAudioOnly: true })
+        });
+        const data = await response.json();
+        if (data.status === 'stream' || data.status === 'redirect') return data.url;
+    } catch (e) {
+        console.error('[Handler] Cobalt API unreachable:', e.message);
+    }
+    return null;
+}
+
+// 擷取音訊 (V38: Server-side Hybrid Strategy)
 export async function extractAudio(url, cookieData = null) {
-    // 核心修正：強制清理 URL，只留下基礎影片連結，避免播放清單 (list=) 導致解析逾時
+    // 強制清理 URL，避免播放清單 (list=) 導致解析逾時
     const vid = extractVideoId(url);
     const cleanUrl = vid ? `https://www.youtube.com/watch?v=${vid}` : url;
 
@@ -154,31 +171,45 @@ export async function extractAudio(url, cookieData = null) {
         ]
     };
 
-    // 處理 Cookies (V36 增強)
+    // 策略 A: 如果使用者提供 Cookies，優先用 yt-dlp (最穩定)
     if (cookieData) {
         const netscape = convertToNetscape(cookieData);
         if (netscape) {
-            cookieFile = join(os.tmpdir(), `yt_cookies_${Date.now()}.txt`);
-            fs.writeFileSync(cookieFile, netscape);
-            options.cookies = cookieFile;
-            console.log('[Handler] Using custom user cookies for extraction ✅');
+            try {
+                cookieFile = join(os.tmpdir(), `yt_cookies_${Date.now()}.txt`);
+                fs.writeFileSync(cookieFile, netscape);
+                options.cookies = cookieFile;
+                console.log('[Handler] Using custom cookies with yt-dlp...');
+
+                const info = await ytdlp(cleanUrl, options);
+                const format = info.formats
+                    .filter(f => f.vcodec === 'none' && (f.ext === 'm4a' || f.ext === 'webm'))
+                    .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+
+                if (format) return { url: format.url, ext: format.ext, title: info.title };
+            } catch (e) {
+                console.warn('[Handler] yt-dlp with cookies failed:', e.message);
+            } finally {
+                if (cookieFile && fs.existsSync(cookieFile)) fs.unlinkSync(cookieFile);
+            }
         }
     }
 
-    try {
-        const info = await ytdlp(url, options);
-        const format = info.formats
-            .filter(f => f.vcodec === 'none' && (f.ext === 'm4a' || f.ext === 'webm'))
-            .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+    // 策略 B: 使用第三方服務備援 (Cobalt) - 由伺服器發起，繞過 CORS
+    const cobaltUrl = await fetchWithCobaltServerSide(cleanUrl);
+    if (cobaltUrl) {
+        console.log('[Handler] Cobalt extraction SUCCESS ✅');
+        return { url: cobaltUrl, ext: 'mp3', title: 'YouTube Audio' };
+    }
 
-        if (!format) throw new Error('No audio format found');
-        return { url: format.url, ext: format.ext, title: info.title };
+    // 策略 C: 最後嘗試原始 yt-dlp (純靠運氣)
+    try {
+        console.log('[Handler] Trying default yt-dlp...');
+        const info = await ytdlp(cleanUrl, { dumpSingleJson: true, noCheckCertificates: true });
+        const format = info.formats.filter(f => f.vcodec === 'none').sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
+        if (format) return { url: format.url, ext: format.ext, title: info.title };
     } catch (e) {
-        console.error('[Handler] yt-dlp failed:', e.message);
-        throw e;
-    } finally {
-        // 清理暫存 Cookies 檔
-        if (cookieFile && fs.existsSync(cookieFile)) fs.unlinkSync(cookieFile);
+        throw new Error('所有下載策略皆失敗，建議貼上 YouTube Cookies。');
     }
 }
 

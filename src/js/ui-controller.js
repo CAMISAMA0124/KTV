@@ -309,6 +309,21 @@ export class UIController {
         }
     }
 
+    _copyAndOpenYt1s(url, btn) {
+        navigator.clipboard.writeText(url).then(() => {
+            const original = btn.innerHTML;
+            btn.innerHTML = '✅ 已複製！';
+            btn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+            setTimeout(() => {
+                btn.innerHTML = original;
+                btn.style.background = '';
+            }, 2000);
+        }).catch(() => {
+            prompt('請手動複製此網址:', url);
+        });
+        window.open('https://yt1s.ai/zh-tw/youtube-to-mp3/', '_blank');
+    }
+
     showSearchResults(results) {
         this.$urlInput.placeholder = '貼上網址或搜尋歌曲...';
         this._resetURLPanel();
@@ -327,17 +342,21 @@ export class UIController {
                         <span>👤 ${video.uploader}</span>
                         <span>⏱️ ${this._formatSeconds(video.duration)}</span>
                     </div>
+                    <div class="search-actions" style="display:none; margin-top:8px; gap:6px; flex-wrap:wrap;">
+                        <button class="copy-url-btn" style="
+                            padding: 7px 14px; border-radius: 12px; border: none;
+                            background: linear-gradient(135deg, #a78bfa, #818cf8);
+                            color: #fff; font-weight: 700; font-size: 0.78rem;
+                            cursor: pointer; display:inline-flex; align-items:center; gap:4px;
+                        ">📋 複製連結並下載</button>
+                        <button class="inline-extract-btn" style="
+                            padding: 7px 14px; border-radius: 12px; border: none;
+                            background: rgba(255,255,255,0.1);
+                            color: #fff; font-weight: 700; font-size: 0.78rem;
+                            cursor: pointer; display:inline-flex; align-items:center; gap:4px;
+                        ">🎵 已下載，直接分析</button>
+                    </div>
                 </div>
-                <button class="inline-extract-btn" style="
-                    display: none; align-items: center; justify-content: center; gap: 4px;
-                    padding: 10px 14px; border-radius: 14px; border: none;
-                    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-blue) 100%);
-                    color: #fff; font-weight: 800; font-size: 0.8rem;
-                    cursor: pointer; box-shadow: 0 4px 12px rgba(167, 139, 250, 0.2);
-                    transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
-                ">
-                    🔥 開始分析
-                </button>
             </div>
         `).join('');
 
@@ -345,30 +364,44 @@ export class UIController {
         this.$searchResults.style.flexDirection = 'column';
 
         this.$searchResults.querySelectorAll('.search-item').forEach((item, idx) => {
-            const btn = item.querySelector('.inline-extract-btn');
+            const video = results[idx];
+            const ytUrl = `https://www.youtube.com/watch?v=${video.id}`;
+            const actionsDiv = item.querySelector('.search-actions');
+            const copyBtn = item.querySelector('.copy-url-btn');
+            const analyzeBtn = item.querySelector('.inline-extract-btn');
 
             item.onclick = () => {
-                this._selectVideo(results[idx]);
+                this._selectVideo(video);
                 this.$videoPreview.style.display = 'none';
                 this.$extractBtn.style.display = 'none';
 
+                // 收合其他項目
                 this.$searchResults.querySelectorAll('.search-item').forEach(el => {
                     el.classList.remove('selected');
-                    const b = el.querySelector('.inline-extract-btn');
-                    if (b) b.style.display = 'none';
+                    const a = el.querySelector('.search-actions');
+                    if (a) a.style.display = 'none';
                 });
 
                 item.classList.add('selected');
-                if (btn) {
-                    btn.style.display = 'flex';
-                    btn.disabled = false;
-                }
+                if (actionsDiv) actionsDiv.style.display = 'flex';
             };
 
-            if (btn) {
-                btn.onclick = (e) => {
+            if (copyBtn) {
+                copyBtn.onclick = (e) => {
                     e.stopPropagation();
-                    this._showModeSelection();
+                    this._copyAndOpenYt1s(ytUrl, copyBtn);
+                };
+            }
+
+            if (analyzeBtn) {
+                analyzeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    // 用戶已下載，觸發本地上傳
+                    const fileInput = document.getElementById('local-file-input');
+                    if (fileInput) {
+                        this.setStatus('📂 請選擇您剛下載的 MP3 檔案...');
+                        fileInput.click();
+                    }
                 };
             }
         });
