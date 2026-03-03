@@ -34,7 +34,7 @@ async function apiRequest(path, options = {}) {
     const config = EngineConfig.load();
     const isProxy = path.includes('/proxy');
 
-    // 搜尋與詳情：優先走 Vercel ('') 以確保搜尋成功率。
+    // 搜尋與詳情：強烈優先走雲端 ('') 以確保搜尋成功率。
     // 下載代理：優先走家中的 config.backend。
     const list = isProxy
         ? [config.backend, config.cloud_backend, '']

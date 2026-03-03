@@ -7,15 +7,15 @@ import { Jungle } from './jungle.js';
 
 class KTVPlayer {
     constructor() {
-        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.ctx = null;
         this.ytPlayer = null;
         this.isReady = false;
 
         // 音訊節點
         this.accompanimentNode = null;
         this.vocalsNode = null;
-        this.accompanimentGain = this.ctx.createGain();
-        this.vocalsGain = this.ctx.createGain();
+        this.accompanimentGain = null;
+        this.vocalsGain = null;
 
         // 分離後的音訊緩衝
         this.vocalsBuffer = null;
@@ -28,18 +28,19 @@ class KTVPlayer {
         this.isLocalOnly = false;
         this.localVideo = null;
         this.isPlaying = false;
-
-        this.initAudioChain();
+        this.startTimeOffset = 0;
     }
 
     initAudioChain() {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.accompanimentGain = this.ctx.createGain();
+        this.vocalsGain = this.ctx.createGain();
         this.accompanimentGain.connect(this.ctx.destination);
         this.vocalsGain.connect(this.ctx.destination);
     }
 
     async load(vocals, accompaniment, source = null) {
         this.destroy(); // 清除舊狀態
-        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.initAudioChain();
 
         this.vocalsBuffer = vocals;
@@ -50,20 +51,28 @@ class KTVPlayer {
         this.accompPitchShift.output.connect(this.accompanimentGain);
 
         const container = document.getElementById('video-container');
-        if (container) container.innerHTML = '';
+        if (container) {
+            container.innerHTML = '';
+            const parent = container.parentElement;
+            if (parent) parent.style.display = 'block';
+        }
 
-        if (!source) {
+        // 核心：判斷是 YouTube 還是本地影片
+        const isYTId = typeof source === 'string' && source.length === 11 && !source.includes(':');
+        const isYTUrl = typeof source === 'string' && source.startsWith('http') && source.includes('youtube.com');
+
+        if (isYTId || isYTUrl) {
+            const videoId = isYTId ? source : new URL(source).searchParams.get('v');
+            this.isLocalOnly = false;
+            await this.initYTPlayer(videoId || source);
+        } else if (source && (source.startsWith('blob:') || source.startsWith('data:'))) {
+            // 本地影片模式
+            this.isLocalOnly = true;
+            await this.initLocalVideo(source, container);
+        } else {
             // 純音訊模式
             this.isLocalOnly = true;
             this.renderAudioUI(container);
-        } else if (source.startsWith('http') && !source.includes('blob:')) {
-            // YouTube 模式
-            this.isLocalOnly = false;
-            await this.initYTPlayer(source);
-        } else {
-            // 本地影片模式 (Blob URL)
-            this.isLocalOnly = true;
-            await this.initLocalVideo(source, container);
         }
         this.isReady = true;
     }
@@ -73,9 +82,11 @@ class KTVPlayer {
         video.src = url;
         video.style.width = '100%';
         video.style.height = '100%';
+        video.style.objectFit = 'contain';
         video.style.borderRadius = '12px';
-        video.muted = true; // 關鍵：靜音原片聲音
+        video.muted = true;
         video.playsInline = true;
+        video.controls = false;
         container.appendChild(video);
         this.localVideo = video;
 
@@ -88,26 +99,31 @@ class KTVPlayer {
             this.stopSync();
         };
         video.onseeking = () => this.playAudioFrom(video.currentTime);
-
-        // 點擊影片播放/暫停
         video.onclick = () => video.paused ? video.play() : video.pause();
+
+        // 自動播放本地影片
+        try { await video.play(); } catch (e) { console.warn('Autoplay blocked'); }
     }
 
     renderAudioUI(container) {
         container.innerHTML = `
-            <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#111; color:#fff;">
-                <div class="eq" style="display:flex; gap:4px; height:30px; align-items:flex-end; margin-bottom:20px;">
-                    <style> .bar { width:4px; background:var(--accent); animation: h 1s infinite; } @keyframes h { 0%, 100% {height:10px} 50% {height:30px} } </style>
-                    <div class="bar"></div><div class="bar" style="animation-delay:0.2s"></div><div class="bar" style="animation-delay:0.4s"></div>
+            <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(135deg, #1a1a2e, #16213e); color:#fff; border-radius:12px;">
+                <div class="eq" style="display:flex; gap:6px; height:40px; align-items:flex-end; margin-bottom:30px;">
+                    <style> 
+                        .bar { width:6px; background:var(--accent); animation: h 0.8s infinite ease-in-out; border-radius:3px; } 
+                        @keyframes h { 0%, 100% {height:15px} 50% {height:40px} } 
+                    </style>
+                    <div class="bar"></div><div class="bar" style="animation-delay:0.1s"></div><div class="bar" style="animation-delay:0.2s"></div>
+                    <div class="bar" style="animation-delay:0.3s"></div><div class="bar" style="animation-delay:0.4s"></div>
                 </div>
-                <button id="audio-play-btn" style="padding:10px 20px; border-radius:30px; border:none; background:var(--accent); color:#fff; font-weight:700;">▶ 播放音檔</button>
+                <button id="audio-play-btn" style="width:140px; height:44px; border-radius:22px; border:none; background:var(--accent); color:#fff; font-weight:700; font-size:1rem; cursor:pointer; box-shadow:0 10px 20px rgba(0,0,0,0.3);">▶ 點擊播放</button>
             </div>
         `;
         const btn = container.querySelector('#audio-play-btn');
         btn.onclick = () => {
             if (this.isPlaying) {
                 this.stopLocal();
-                btn.textContent = '▶ 播放音檔';
+                btn.textContent = '▶ 點擊播放';
             } else {
                 this.startLocal();
                 btn.textContent = '⏸ 暫停';
@@ -119,29 +135,79 @@ class KTVPlayer {
     stopLocal() { this.isPlaying = false; this.stopSync(); }
 
     initYTPlayer(videoId) {
+        console.log('[KTV] Initializing YouTube Player for ID:', videoId);
         return new Promise((resolve) => {
-            this.ytPlayer = new YT.Player('video-container', {
-                height: '100%', width: '100%', videoId: videoId,
-                playerVars: { 'autoplay': 1, 'mute': 1, 'playsinline': 1 },
-                events: {
-                    'onReady': () => resolve(),
-                    'onStateChange': (e) => {
-                        if (e.data === YT.PlayerState.PLAYING) this.startSync();
-                        else this.stopSync();
-                    }
+            const setupPlayer = () => {
+                try {
+                    if (this.ytPlayer) this.ytPlayer.destroy();
+                    this.ytPlayer = new YT.Player('video-container', {
+                        height: '100%', width: '100%', videoId: videoId,
+                        playerVars: {
+                            'autoplay': 1, 'mute': 1, 'controls': 1,
+                            'playsinline': 1, 'rel': 0, 'modestbranding': 1,
+                            'enablejsapi': 1, 'origin': window.location.origin
+                        },
+                        events: {
+                            'onReady': () => {
+                                console.log('[KTV] YT Player Ready');
+                                resolve();
+                            },
+                            'onStateChange': (e) => {
+                                if (e.data === YT.PlayerState.PLAYING) this.startSync();
+                                else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) this.stopSync();
+                            },
+                            'onError': (e) => console.error('[KTV] YT Player Error:', e.data)
+                        }
+                    });
+                } catch (err) {
+                    console.error('[KTV] YT Setup Error:', err);
+                    resolve();
                 }
-            });
+            };
+
+            if (window.YT && window.YT.Player) {
+                setupPlayer();
+            } else {
+                console.log('[KTV] Loading YT IFrame API...');
+                if (!document.getElementById('yt-iframe-api')) {
+                    const tag = document.createElement('script');
+                    tag.id = 'yt-iframe-api';
+                    tag.src = "https://www.youtube.com/iframe_api";
+                    document.head.appendChild(tag);
+                }
+
+                // 註冊全域回呼，並加上逾時保護
+                const timeout = setTimeout(() => {
+                    if (!this.ytPlayer) {
+                        console.warn('[KTV] YouTube API load timeout, trying manual setup...');
+                        if (window.YT && window.YT.Player) setupPlayer();
+                    }
+                }, 5000);
+
+                const oldOnReady = window.onYouTubeIframeAPIReady;
+                window.onYouTubeIframeAPIReady = () => {
+                    console.log('[KTV] YT IFrame API Ready via Callback');
+                    if (oldOnReady) oldOnReady();
+                    clearTimeout(timeout);
+                    setupPlayer();
+                };
+            }
         });
     }
 
     startSync() {
+        if (!this.ctx) return;
         if (this.ctx.state === 'suspended') this.ctx.resume();
-        const getTime = () => this.isLocalOnly ? (this.localVideo?.currentTime || 0) : this.ytPlayer.getCurrentTime();
+        const getTime = () => this.isLocalOnly ? (this.localVideo?.currentTime || 0) : (this.ytPlayer?.getCurrentTime?.() || 0);
 
         this.playAudioFrom(getTime());
+        clearInterval(this.syncInterval);
         this.syncInterval = setInterval(() => {
-            const delta = Math.abs(getTime() - (this.ctx.currentTime - this.startTimeOffset));
-            if (delta > 0.15) this.playAudioFrom(getTime());
+            const yt = getTime();
+            const audio = this.ctx.currentTime - this.startTimeOffset;
+            if (Math.abs(yt - audio) > 0.15) {
+                this.playAudioFrom(yt);
+            }
         }, 1000);
     }
 
@@ -149,9 +215,12 @@ class KTVPlayer {
         clearInterval(this.syncInterval);
         this.vocalsNode?.stop();
         this.accompanimentNode?.stop();
+        this.vocalsNode = null;
+        this.accompanimentNode = null;
     }
 
     playAudioFrom(time) {
+        if (!this.ctx || !this.vocalsBuffer) return;
         this.vocalsNode?.stop();
         this.accompanimentNode?.stop();
 
@@ -171,11 +240,13 @@ class KTVPlayer {
 
     toggleGuide(isOn) { this.isGuideMode = isOn; this.updateGuideVocal(); }
     updateGuideVocal() {
+        if (!this.vocalsGain) return;
         const gain = this.isGuideMode ? 1.0 : 0.0;
         this.vocalsGain.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.1);
     }
 
     setPitch(key) {
+        this.currentPitch = key;
         const mult = key / 12;
         this.vocalPitchShift?.setPitchOffset(mult);
         this.accompPitchShift?.setPitchOffset(mult);
@@ -183,7 +254,10 @@ class KTVPlayer {
 
     destroy() {
         this.stopSync();
-        if (this.ctx) this.ctx.close();
+        if (this.ctx) {
+            try { this.ctx.close(); } catch (e) { }
+        }
+        this.ctx = null;
         this.ytPlayer = null;
         this.localVideo = null;
         this.isPlaying = false;
