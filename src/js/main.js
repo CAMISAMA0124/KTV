@@ -124,6 +124,7 @@ async function processFile(file, metadata = null, mode = 'ai') {
             vocalsURL: URL.createObjectURL(new Blob([vocalsWav], { type: 'audio/wav' })),
             accompanimentURL: URL.createObjectURL(new Blob([accompWav], { type: 'audio/wav' })),
         };
+        lastResults = results; // 暫存用於雲端保存
 
         ui.setProgress(100);
 
@@ -226,6 +227,71 @@ ui.on('history-item-selected', async (item) => {
 ui.on('cancel', () => {
     currentAbortController?.abort();
     ui.reset();
+});
+
+// 全域暫存最後一次處理的結果，用於上傳雲端
+let lastResults = null;
+
+ui.on('save-to-cloud', async (name) => {
+    if (!lastResults || !lastResults.vocalsBlob) {
+        alert('請先完成 AI 分離處理後再保存。');
+        return;
+    }
+
+    try {
+        ui.setStatus('☁️ 正在上傳雲端曲庫...');
+        const meta = { ...currentMetadata, title: name };
+        const result = await cloud.uploadToSupabase(name, lastResults.vocalsBlob, lastResults.accompanimentBlob, meta);
+        ui.setStatus('✅ 已成功保存至雲端曲庫！');
+        console.log('[Cloud] Upload success:', result);
+    } catch (e) {
+        ui.showError(`雲端儲存失敗: ${e.message}`);
+    }
+});
+
+ui.on('library-search', async (query) => {
+    if (!query) {
+        ui.renderHistory(); // 回復本地紀錄
+        return;
+    }
+
+    // 雖然 cloud.searchCloudLibrary 已經寫好，但我們在 UI 上顯示它
+    const results = await cloud.searchCloudLibrary(query);
+    if (results && results.length > 0) {
+        const container = document.getElementById('history-list');
+        if (container) {
+            container.innerHTML = results.map(item => `
+                <div class="history-card cloud-item" 
+                     onclick="window.ui.emit('cloud-item-selected', ${JSON.stringify(item).replace(/"/g, '&quot;')})"
+                     style="border: 1px solid rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.05);">
+                    <img class="history-thumb" src="${item.thumbnail || ''}" alt="">
+                    <div class="history-title" style="color:#38bdf8;">☁️ ${item.title || '雲端歌曲'}</div>
+                </div>
+            `).join('');
+        }
+    }
+});
+
+ui.on('cloud-item-selected', async (item) => {
+    ui.setStatus('📡 正在從雲端載入音軌...');
+    ui.setState(UIState.LOADING_MODEL);
+
+    try {
+        const vRes = await fetch(item.vocals_url);
+        const aRes = await fetch(item.accomp_url);
+
+        if (!vRes.ok || !aRes.ok) throw new Error('雲端檔案讀取失敗');
+
+        const results = {
+            vocalsBlob: await vRes.blob(),
+            accompanimentBlob: await aRes.blob(),
+            vocalsURL: item.vocals_url,
+            accompanimentURL: item.accomp_url
+        };
+        await ui.setResults(results, `${item.title}.wav`, item);
+    } catch (e) {
+        ui.showError(e.message);
+    }
 });
 
 init().catch(console.error);
