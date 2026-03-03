@@ -122,7 +122,10 @@ async function processFile(file, metadata = null, mode = 'ai') {
         };
 
         ui.setProgress(100);
-        await ui.setResults(results, displayName, metadata);
+
+        // 注入模式標籤，供 UI 決定是否顯示保存按鈕
+        const finalMetadata = { ...metadata, isAI: mode === 'ai' };
+        await ui.setResults(results, displayName, finalMetadata);
 
     } catch (e) {
         if (signal?.aborted) { ui.reset(); return; }

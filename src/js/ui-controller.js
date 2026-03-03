@@ -91,6 +91,16 @@ export class UIController {
         document.getElementById('mode-ai')?.addEventListener('click', () => {
             this.emit('mode-selected', 'ai', this._selectedFile, this._selectedVideo);
         });
+
+        /* 保存按鈕觸發命名流程 */
+        document.getElementById('save-btn')?.addEventListener('click', async () => {
+            const currentTitle = document.getElementById('video-title')?.textContent || '未知歌曲';
+            const name = prompt('請輸入要保存的歌名（這將用於雲端檢索）：', currentTitle);
+            if (name) {
+                this.emit('save-to-cloud', name);
+                alert(`正在準備將「${name}」處理... (雲端功能開發中)`);
+            }
+        });
     }
 
     _closeDrawer() {
@@ -328,6 +338,13 @@ export class UIController {
 
         await ktv.load(vBuffer, aBuffer, source);
         this.setStatus('🎉 準備完成，開始熱唱！');
+
+        // ✅ 根據模式決定是否顯示保存按鈕
+        const isAI = metadata?.isAI === true;
+        const saveBtn = document.getElementById('save-btn');
+        if (saveBtn) {
+            saveBtn.style.display = isAI ? 'flex' : 'none';
+        }
 
         // 三重保險：無論如何都隱藏黑畫面覆蓋層
         const overlay = document.getElementById('video-overlay');
