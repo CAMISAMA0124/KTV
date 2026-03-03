@@ -92,8 +92,17 @@ export async function searchYouTube(query) {
     try {
         const res = await apiRequest(`/search?query=${encodeURIComponent(query)}`);
         const data = await res.json();
+
+        // 如果後端返回空 (通常是被封鎖)，或是 API 報錯
+        if (!data.results || data.results.length === 0) {
+            console.warn('Backend search returned no results, service might be limited.');
+        }
+
         return data.results || [];
-    } catch (e) { return []; }
+    } catch (e) {
+        console.error('Search API Error:', e);
+        return [];
+    }
 }
 
 /** 2. 詳情 */
@@ -114,35 +123,73 @@ export async function fetchVideoInfo(url) {
     };
 }
 
-/** 3. 下載 (V34 直接串流版 - 後端代理全部字節) */
+/** 3. 下載 (V34+V37: 加入 Cobalt 用戶端備援) */
+async function fetchWithCobalt(url) {
+    console.log('[Cobalt] Requesting client-side extraction...');
+    const API_URL = 'https://api.cobalt.tools/api/json';
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                url: url,
+                vQuality: '720',
+                aFormat: 'mp3',
+                isAudioOnly: true,
+                filenamePattern: 'pretty'
+            })
+        });
+        const data = await response.json();
+        if (data.status === 'stream' || data.status === 'redirect') {
+            return data.url;
+        }
+        throw new Error(data.text || 'Cobalt 解析失敗');
+    } catch (e) {
+        throw new Error('用戶端下載服務暫時不可用，請稍後再試。');
+    }
+}
+
 export async function extractFromURL(url, onProgress, signal) {
     const videoId = getYouTubeId(url);
+    let blob = null;
+    let contentType = 'audio/mpeg';
 
-    // 後端現在直接串流音訊，不再回傳 URL
-    // 只需直接下載後端的 /api/proxy 回應串流即可
-    const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
+    try {
+        // 優先嘗試：Hugging Face 後端 (如果是連線正常的狀況下)
+        const res = await apiRequest(`/proxy?url=${encodeURIComponent(url)}`);
+        const cType = res.headers.get('content-type') || '';
 
-    // 確認是音訊串流（Content-Type 是 audio/*）
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('audio')) {
-        // 可能是 JSON 錯誤訊息
-        const data = await res.json();
-        throw new Error(data.message || data.error || '後端無法解析音源');
+        if (!cType.includes('audio')) {
+            const data = await res.json();
+            throw new Error(data.message || '後端目前被限制');
+        }
+
+        const total = parseInt(res.headers.get('content-length'), 10) || 10000000;
+        let loaded = 0;
+        const reader = res.body.getReader();
+        const chunks = [];
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            loaded += value.length;
+            if (onProgress) onProgress((loaded / total) * 100);
+        }
+        blob = new Blob(chunks, { type: cType });
+        contentType = cType;
+    } catch (e) {
+        console.warn('[Service] Backend failed, switching to Cobalt client-side strategy...', e.message);
+
+        // 備援：Cobalt 用戶端直連 (解決 IP 被封鎖問題)
+        const downloadUrl = await fetchWithCobalt(url);
+        const res = await fetch(downloadUrl);
+        if (!res.ok) throw new Error('Cobalt 串流取得失敗');
+
+        blob = await res.blob();
+        contentType = blob.type;
     }
 
-    const total = parseInt(res.headers.get('content-length'), 10) || 10000000;
-    let loaded = 0;
-    const reader = res.body.getReader();
-    const chunks = [];
-
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        loaded += value.length;
-        if (onProgress) onProgress((loaded / total) * 100);
-    }
-    const blob = new Blob(chunks, { type: contentType });
     return new File([blob], `${videoId}.mp3`, { type: contentType });
 }
 

@@ -177,7 +177,12 @@ app.all(['/api/proxy', '/api/proxy.json'], async (req, res) => {
         console.warn(`[Proxy] ytdl pipe failed: ${e.message}`);
     }
 
-    if (!res.headersSent) res.status(502).json({ error: 'ALL_STRATEGIES_FAILED', message: '無法解析音源' });
+    if (!res.headersSent) {
+        res.status(503).json({
+            error: 'EXTRACTION_FAILED',
+            message: '目前伺服器 IP 被限制或連線不穩，建議點擊設定圖示貼上您的 YouTube Cookies 使用。'
+        });
+    }
 });
 
 

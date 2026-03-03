@@ -111,7 +111,8 @@ export async function searchVideos(query, limit = 8) {
             uploader: v.author?.name || 'YouTube',
         }));
     } catch (e) {
-        throw new Error('搜尋暫時不可用');
+        console.error(`[Search] YouTube Search Failed (Probably blocked IP):`, e.message);
+        return []; // 返回空陣列以觸發前端的備援模式
     }
 }
 
@@ -134,9 +135,13 @@ function convertToNetscape(jsonText) {
     } catch { return null; }
 }
 
-/** 擷取音訊 (支援動態 Cookies) */
+// 擷取音訊 (支援動態 Cookies)
 export async function extractAudio(url, cookieData = null) {
-    console.log(`[Handler] Extracting audio with yt-dlp: ${url}`);
+    // 核心修正：強制清理 URL，只留下基礎影片連結，避免播放清單 (list=) 導致解析逾時
+    const vid = extractVideoId(url);
+    const cleanUrl = vid ? `https://www.youtube.com/watch?v=${vid}` : url;
+
+    console.log(`[Handler] Extracting audio: ${cleanUrl} (Original: ${url})`);
 
     let cookieFile = null;
     const options = {
