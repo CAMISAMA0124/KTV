@@ -265,7 +265,12 @@ export class UIController {
     }
 
     setStatus(msg) { if (this.$statusText) this.$statusText.textContent = msg; }
-    setProgress(pct) { if (this.$progressFill) this.$progressFill.style.width = `${pct}%`; }
+    setProgress(pct) {
+        const p = Math.round(pct);
+        if (this.$progressFill) this.$progressFill.style.width = `${p}%`;
+        const pctEl = document.getElementById('progress-pct');
+        if (pctEl) pctEl.textContent = `${p}%`;
+    }
     setFileName(name) { const el = document.getElementById('video-title'); if (el) el.textContent = name; }
 
     setAPIStatus(ok, isWarming = false) {
@@ -289,26 +294,36 @@ export class UIController {
 
     /* ── 分析完成，載入播放器 ─────────────────── */
     async setResults(results, fileName, metadata = null) {
+        // 先顯示結果面板
         this.setState(UIState.DONE);
 
         const vBuffer = await this._blobToAudioBuffer(results.vocalsBlob);
         const aBuffer = await this._blobToAudioBuffer(results.accompanimentBlob);
 
         // 決定播放來源
-        let source = metadata?.id || null;
-        if (!source && this._selectedFile &&
+        let source = null;
+        if (metadata?.id && String(metadata.id).length === 11) {
+            // YouTube 11 碼 ID → YT 播放器
+            source = String(metadata.id);
+            console.log('[UI] setResults → YouTube ID:', source);
+        } else if (this._selectedFile &&
             (this._selectedFile.type.startsWith('video') ||
                 /\.(mp4|mov|m4v|mkv)$/i.test(this._selectedFile.name))) {
+            // 本地影片 → blob URL
             source = URL.createObjectURL(this._selectedFile);
+            console.log('[UI] setResults → local video blob');
+        } else {
+            // 純音訊模式
+            source = null;
+            console.log('[UI] setResults → audio-only mode');
         }
 
-        console.log('[UI] setResults: source =', source);
         await ktv.load(vBuffer, aBuffer, source);
         this.setStatus('🎉 準備完成，開始熱唱！');
 
-        // 再次確保 overlay 不擋畫面
+        // 三重保險：無論如何都隱藏黑畫面覆蓋層
         const overlay = document.getElementById('video-overlay');
-        if (overlay) { overlay.classList.remove('active'); overlay.style.display = 'none'; }
+        if (overlay) { overlay.style.display = 'none'; overlay.classList.remove('active'); }
     }
 
     showError(msg) {
