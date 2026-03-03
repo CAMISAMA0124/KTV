@@ -41,7 +41,7 @@ class KTVPlayer {
     /**
      * 載入分離後的音軌並準備播放
      */
-    async load(vocals, accompaniment, videoId) {
+    async load(vocals, accompaniment, videoId = null) {
         if (this.ctx.state === 'suspended') await this.ctx.resume();
 
         this.vocalsBuffer = vocals;
@@ -53,20 +53,103 @@ class KTVPlayer {
         this.vocalPitchShift.output.connect(this.vocalsGain);
         this.accompPitchShift.output.connect(this.accompanimentGain);
 
-        // 初始化 YouTube Player
-        if (!this.ytPlayer) {
-            await this.initYTPlayer(videoId);
-        } else {
-            try {
-                this.ytPlayer.loadVideoById(videoId);
-            } catch (e) {
-                console.warn('[KTV] Re-initializing player...');
-                this.ytPlayer = null;
+        // 如果有 videoId，初始化 YouTube Player
+        if (videoId) {
+            this.isLocalOnly = false;
+            if (!this.ytPlayer) {
                 await this.initYTPlayer(videoId);
+            } else {
+                try {
+                    this.ytPlayer.loadVideoById(videoId);
+                } catch (e) {
+                    console.warn('[KTV] Re-initializing player...');
+                    this.ytPlayer = null;
+                    await this.initYTPlayer(videoId);
+                }
+            }
+        } else {
+            // 本地模式：顯示一個 Premium 的播放狀態卡片
+            this.isLocalOnly = true;
+            this.ytPlayer = null;
+            const container = document.getElementById('video-container');
+            if (container) {
+                container.innerHTML = `
+                    <div class="local-player-ui" style="
+                        height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                        color: #fff; padding: 30px; text-align: center; border-radius: 24px; position: relative; overflow: hidden;
+                    ">
+                        <!-- Background Glow Decoration -->
+                        <div style="position: absolute; width: 200px; height: 200px; background: var(--accent); opacity: 0.1; filter: blur(100px); top: -50px; left: -50px;"></div>
+                        <div style="position: absolute; width: 150px; height: 150px; background: var(--accent-pink); opacity: 0.1; filter: blur(80px); bottom: -30px; right: -30px;"></div>
+
+                        <div class="playing-equalizer" style="height: 40px; display: flex; align-items: flex-end; gap: 4px; margin-bottom: 25px;">
+                            <style>
+                                .eq-bar { width: 4px; border-radius: 2px; background: var(--accent); animation: eq 1s ease-in-out infinite; height: 10px; }
+                                .eq-bar:nth-child(2) { animation-delay: 0.1s; height: 25px; }
+                                .eq-bar:nth-child(3) { animation-delay: 0.2s; height: 15px; }
+                                .eq-bar:nth-child(4) { animation-delay: 0.3s; height: 35px; }
+                                .eq-bar:nth-child(5) { animation-delay: 0.4s; height: 20px; }
+                                @keyframes eq { 0%, 100% { height: 10px; } 50% { height: 35px; } }
+                                .paused .eq-bar { animation-play-state: paused; height: 10px !important; }
+                            </style>
+                            <div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div>
+                        </div>
+
+                        <div style="font-size: 1rem; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 8px;">PREMIUM <span class="gradient-text">OFFLINE PLAYER</span></div>
+                        <div style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 30px;">本地音檔 · 已完成 AI 分離</div>
+
+                        <div id="local-player-controls" style="display: flex; align-items: center; gap: 20px;">
+                            <button id="local-play-btn" style="
+                                width: 70px; height: 70px; border-radius: 50%; border: none;
+                                background: linear-gradient(135deg, var(--accent) 0%, #818cf8 100%);
+                                color: #fff; font-size: 1.5rem; cursor: pointer;
+                                display: flex; align-items: center; justify-content: center;
+                                transition: 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+                                box-shadow: 0 15px 30px rgba(129, 140, 248, 0.4);
+                                -webkit-tap-highlight-color: transparent;
+                            ">
+                                <span id="local-play-icon">▶</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                const playBtn = container.querySelector('#local-play-btn');
+                const playIcon = container.querySelector('#local-play-icon');
+                const eq = container.querySelector('.playing-equalizer');
+
+                // 初始設為暫停
+                eq.classList.add('paused');
+
+                playBtn?.addEventListener('click', () => {
+                    if ('vibrate' in navigator) navigator.vibrate(10);
+                    if (this.isPlaying) {
+                        this.stopLocal();
+                        playIcon.textContent = '▶';
+                        eq.classList.add('paused');
+                        playBtn.style.transform = 'scale(1)';
+                    } else {
+                        this.startLocal();
+                        playIcon.textContent = '⏸';
+                        eq.classList.remove('paused');
+                        playBtn.style.transform = 'scale(0.92)';
+                    }
+                });
             }
         }
 
         this.isReady = true;
+    }
+
+    startLocal() {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        this.isPlaying = true;
+        this.playAudioFrom(0);
+    }
+
+    stopLocal() {
+        this.isPlaying = false;
+        this.stopSync();
     }
 
     initYTPlayer(videoId) {

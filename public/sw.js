@@ -3,12 +3,13 @@
  * 快取靜態資源以支援離線使用與 iPhone 主畫面安裝
  */
 
-const CACHE_NAME = 'stemsplit-v2';
+const CACHE_NAME = 'stemsplit-v3';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
     '/src/style.css',
     '/src/js/main.js',
+    '/src/js/ktv-player.js',
     '/src/js/env-check.js',
     '/src/js/opfs-cache.js',
     '/src/js/model-loader.js',
@@ -16,7 +17,6 @@ const STATIC_ASSETS = [
     '/src/js/inference-engine.js',
     '/src/js/audio-merger.js',
     '/src/js/ui-controller.js',
-    '/src/js/url-importer.js',
     '/manifest.json',
 ];
 

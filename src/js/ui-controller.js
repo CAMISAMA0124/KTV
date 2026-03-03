@@ -92,27 +92,44 @@ export class UIController {
         const quickBtn = document.getElementById('drawer-quick-btn');
         const aiBtn = document.getElementById('drawer-ai-btn');
 
+        // pendingMode 決定從哪個按鈕觸發的上傳
+        // 'drawer-quick' / 'drawer-ai' → 直接跳過 mode-selection，立即處理
+        // 'mode-card' → 使用者從 mode-selection 卡片選擇，只儲存檔案後顯示 mode-selection
+        let pendingSource = 'mode-card';
         let pendingMode = 'quick';
 
         if (fileInput) {
+            // 唯一的 change 監聽器（統一在這裡處理，避免多重綁定衝突）
             fileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 this._selectedFile = file;
                 this._selectedVideo = null;
-                this._toggleEngineDrawer(false); // 關閉設定抽屜
-                // 直接以選擇的模式處理，不再顯示 mode-selection
-                setTimeout(() => this.emit('mode-selected', pendingMode, file, null), 200);
                 fileInput.value = ''; // 重置，方便下次選同一個檔案
+
+                if (pendingSource === 'drawer') {
+                    // 抽屜按鈕觸發：關閉抽屜，直接以選定模式處理
+                    this._toggleEngineDrawer(false);
+                    setTimeout(() => this.emit('mode-selected', pendingMode, file, null), 200);
+                } else {
+                    // 主頁面流程（mode-selection 卡片觸發）：顯示模式選擇
+                    this._showModeSelection();
+                    this.setStatus(`✅ 已選擇音檔: ${file.name}，請選擇要處理的模式`);
+                }
+
+                // 重置來源，下次預設為 mode-card
+                pendingSource = 'mode-card';
             });
         }
 
         quickBtn?.addEventListener('click', () => {
+            pendingSource = 'drawer';
             pendingMode = 'quick';
             fileInput?.click();
         });
 
         aiBtn?.addEventListener('click', () => {
+            pendingSource = 'drawer';
             pendingMode = 'ai';
             fileInput?.click();
         });
@@ -191,17 +208,6 @@ export class UIController {
             this.emit('mode-selected', 'quick', this._selectedFile, this._selectedVideo);
         });
 
-        // Local File Input
-        document.getElementById('local-file-input')?.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                this._selectedFile = file;
-                this._selectedVideo = null;
-                this._showModeSelection();
-            }
-        });
-
-
         this.$clearCacheBtn?.addEventListener('click', async () => {
             if (confirm('⚠️ 確定要清除手機內所有暫存的歌曲與歷史紀錄嗎？')) {
                 await clearAllData();
@@ -224,18 +230,6 @@ export class UIController {
                 a2.click();
             }, 300);
         });
-
-        // Local Upload
-        const fileInput = document.getElementById('local-file-input');
-        if (fileInput) {
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                this._selectedFile = file; // Store the selected file
-                this._showModeSelection();  // Show the AI/Quick mode prompt
-                this.setStatus(`✅ 已選擇音檔: ${file.name}，請選擇要處理的模式`);
-            });
-        }
 
         // URL / Search input
         this.$urlInput?.addEventListener('input', () => {
@@ -654,16 +648,29 @@ export class UIController {
             this.$resultPanel.style.display = 'flex';
             this.$resultPanel.classList.add('visible');
 
+            // 本地檔案模式：依然顯示控制項，但隱藏影片疊加層
             const videoWrap = this.$resultPanel.querySelector('.video-container-wrap');
-            if (videoWrap) videoWrap.style.display = 'none';
+            if (videoWrap) videoWrap.style.display = 'block';
 
             const guideBtn = document.getElementById('guide-toggle');
-            if (guideBtn) guideBtn.style.display = 'none';
+            if (guideBtn) guideBtn.style.display = 'flex';
 
             const pitchGroup = this.$resultPanel.querySelector('.pitch-group');
-            if (pitchGroup) pitchGroup.style.display = 'none';
+            if (pitchGroup) pitchGroup.style.display = 'flex';
 
-            this.setStatus('✅ 本地音檔處理完成！可點擊下方按鈕保存音軌。');
+            this.setStatus('✅ 本地音檔處理完成！正在初始化播放器...');
+
+            // 初始化本地播放器
+            try {
+                const vBuffer = await this._blobToAudioBuffer(vocalsBlob);
+                const aBuffer = await this._blobToAudioBuffer(accompanimentBlob);
+                // 傳入 null 代表無 YouTube 影片同步，進入純音訊預覽模式
+                await ktv.load(vBuffer, aBuffer, null);
+                this.setStatus('✅ 處理完成！可使用下方按鈕預覽播放或下載音軌。');
+            } catch (err) {
+                console.error('[KTV] Local load failed:', err);
+                this.setStatus('⚠️ 播放模式啟動失敗，但您仍可下載分析結果');
+            }
         }
     }
 

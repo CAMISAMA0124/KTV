@@ -35,7 +35,8 @@ export const MODEL_CONFIG = {
     // 4-stem (drums, bass, other, vocals) — 公開模型，for web inference
     // Source: https://huggingface.co/timcsy/demucs-web-onnx
     'htdemucs-4stem': {
-        url: '/htdemucs_embedded.onnx',
+        // 使用 HuggingFace CDN 保證模型完整性，解決本地 protobuf 解析失敗 (檔案不完整) 問題
+        url: 'https://huggingface.co/timcsy/demucs-web-onnx/resolve/main/htdemucs_embedded.onnx',
         id: 'htdemucs_embedded.onnx',
         stems: ['drums', 'bass', 'other', 'vocals'], // order from model output
         sampleRate: 44100,
@@ -149,8 +150,15 @@ export async function loadModel({ modelKey = DEFAULT_MODEL, backend = EnvStatus.
                 onStatus?.('✅ CPU 模式啟動完成（較慢）');
                 return { session: cachedSession, config };
             } catch (e2) {
+                if (e2.message.includes('parsing failed') || e2.message.includes('protobuf')) {
+                    throw new Error(`AI 模型檔案可能損毀 (Protobuf Error)。請點擊右上角「設定」->「清除所有暫存」後重試。`);
+                }
                 throw new Error(`GPU 和 CPU 模式均啟動失敗。GPU: ${e.message} | CPU: ${e2.message}`);
             }
+        }
+
+        if (e.message.includes('parsing failed') || e.message.includes('protobuf')) {
+            throw new Error(`AI 模型檔案損毀 (Protobuf Error)。請點擊「設定」->「清除所有暫存」並重新讀取頁面。`);
         }
         throw new Error(`AI 引擎啟動失敗: ${e.message}。請嘗試重新整理頁面。`);
     }
