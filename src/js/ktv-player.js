@@ -32,7 +32,13 @@ class KTVPlayer {
     }
 
     initAudioChain() {
-        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!this.ctx) {
+            console.log('[KTV] Initializing AudioContext');
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+
+        // 每次重新連結節點以確保狀態乾淨
         this.accompanimentGain = this.ctx.createGain();
         this.vocalsGain = this.ctx.createGain();
         this.accompanimentGain.connect(this.ctx.destination);

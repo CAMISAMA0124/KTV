@@ -267,9 +267,14 @@ export class UIController {
     setStatus(msg) { if (this.$statusText) this.$statusText.textContent = msg; }
     setProgress(pct) {
         const p = Math.round(pct);
+        console.log(`[UI] Progress update: ${p}%`);
         if (this.$progressFill) this.$progressFill.style.width = `${p}%`;
         const pctEl = document.getElementById('progress-pct');
-        if (pctEl) pctEl.textContent = `${p}%`;
+        if (pctEl) {
+            pctEl.textContent = `${p}%`;
+        } else {
+            console.warn('[UI] progress-pct element not found!');
+        }
     }
     setFileName(name) { const el = document.getElementById('video-title'); if (el) el.textContent = name; }
 
@@ -335,8 +340,16 @@ export class UIController {
     reset() { location.reload(); }
 
     async _blobToAudioBuffer(blob) {
-        const ab = await blob.arrayBuffer();
-        return await ktv.ctx.decodeAudioData(ab);
+        // 重要：確保 ktv.ctx 已經建立，否則 decodeAudioData 會報錯 (這就是造成黑畫面的主因)
+        if (!ktv.ctx) ktv.initAudioChain();
+
+        try {
+            const ab = await blob.arrayBuffer();
+            return await ktv.ctx.decodeAudioData(ab);
+        } catch (e) {
+            console.error('[UI] Audio decode failed:', e);
+            throw e;
+        }
     }
 
     /* ── 歷史紀錄 ─────────────────────────────── */
