@@ -14,6 +14,7 @@ import { searchYouTube, extractFromURL, fetchVideoInfo, checkAPIHealth } from '.
 import { getStem } from './storage-service.js';
 
 const ui = new UIController();
+window.ui = ui; // 確保全域 onclick 能找到 ui
 let envResult = null;
 let session = null;
 let modelConfig = null;

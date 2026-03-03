@@ -124,6 +124,11 @@ export class UIController {
             document.getElementById('drawer-overlay')?.classList.remove('visible');
         });
 
+        document.getElementById('extract-btn')?.addEventListener('click', () => {
+            document.getElementById('mode-selection').style.display = 'block';
+            document.getElementById('extract-btn').style.display = 'none';
+        });
+
         document.getElementById('clear-cache-btn')?.addEventListener('click', async () => {
             if (confirm('確定清除暫存？')) { await clearAllData(); location.reload(); }
         });
@@ -142,13 +147,15 @@ export class UIController {
     showSearchResults(results) {
         if (!this.$searchResults) return;
         this.$searchResults.innerHTML = (results || []).map(v => `
-            <div class="search-item" onclick="window.ui._selectVideoById('${v.id}')" style="display:flex; gap:10px; margin-bottom:10px; cursor:pointer; background:rgba(255,255,255,0.05); padding:10px; border-radius:12px;">
-                <img src="${v.thumbnail}" style="width:80px; height:45px; object-fit:cover; border-radius:8px;">
-                <div style="flex:1;"><div style="font-weight:700; font-size:0.9rem; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${v.title}</div></div>
+            <div class="search-item" onclick="window.ui._selectVideoById('${v.id}')" style="display:flex; gap:12px; margin-bottom:12px; cursor:pointer; background:rgba(255,255,255,0.03); padding:12px; border-radius:16px; border:1px solid rgba(255,255,255,0.05); transition:0.3s;">
+                <img src="${v.thumbnail}" style="width:100px; height:56px; object-fit:cover; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.3);">
+                <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+                    <div style="font-weight:700; font-size:0.95rem; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; color:#fff;">${v.title}</div>
+                    <div style="font-size:0.75rem; opacity:0.5; margin-top:4px;">${v.uploader}</div>
+                </div>
             </div>
         `).join('');
         this.$searchResults.style.display = 'block';
-        window.ui = this;
     }
 
     async _selectVideoById(id) {
@@ -163,12 +170,29 @@ export class UIController {
         const preview = document.getElementById('video-preview');
         const thumb = document.getElementById('video-thumb');
         const title = document.getElementById('video-title');
-        const modeSelection = document.getElementById('mode-selection');
-
         if (preview) preview.style.display = 'flex';
         if (thumb) thumb.src = video.thumbnail;
         if (title) title.textContent = video.title;
-        if (modeSelection) modeSelection.style.display = 'block';
+
+        // 顯示按鈕
+        const extractBtn = document.getElementById('extract-btn');
+        if (extractBtn) {
+            extractBtn.style.display = 'block';
+            extractBtn.textContent = '🚀 下載並匯入 AI 分離';
+        }
+
+        const modeSelection = document.getElementById('mode-selection');
+        if (modeSelection) modeSelection.style.display = 'none'; // 讓用戶點擊匯入後才顯示
+
+        // 加入外部下載連結 (用戶要求的)
+        const sub = document.getElementById('video-sub') || document.querySelector('.video-sub');
+        if (sub) {
+            sub.innerHTML = `
+                <a href="https://yt1s.com/en/youtube-to-mp3?q=${encodeURIComponent(video.url)}" target="_blank" style="color:var(--accent); text-decoration:underline; font-size:0.8rem; margin-right:10px;">➜ 按此手動下載音訊</a>
+                <span id="video-duration">${video.duration || ''}</span>
+            `;
+        }
+
         this.emit('video-selected', video);
     }
 
@@ -227,6 +251,12 @@ export class UIController {
 
         await ktv.load(vBuffer, aBuffer, source);
         this.setStatus('🎉 準備完成，開始熱唱！');
+
+        // 重要：分析完成後關閉黑畫面覆蓋層
+        if (this.$videoOverlay) {
+            this.$videoOverlay.classList.remove('active');
+            this.$videoOverlay.style.display = 'none';
+        }
     }
 
     showError(msg) {
